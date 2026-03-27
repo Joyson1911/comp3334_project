@@ -82,7 +82,7 @@ class Client_API:
             self._update_auth_header()
         
         return result
-    
+
     def logout(self) -> Dict:
         """
         POST /api/logout
@@ -104,9 +104,6 @@ class Client_API:
             del self.session.headers['Authorization']
         
         return result
-
-
-
 
 
     # ============ Friend Management ============
