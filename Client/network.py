@@ -1,6 +1,7 @@
 import requests
 import os
 from typing import Dict
+import smtplib
 
 class Client_API:
     
@@ -83,6 +84,20 @@ class Client_API:
         
         return result
     
+    def emailVerification(verCode: int, receiverMailAddress: str):
+        message = "Verification Code: " + verCode
+        try:
+            server = smtplib.SMTP("smtp.gmail.com", 587)
+            server.starttls()
+            server.login("comp3334.project.group60@gmail.com", "nqmx mbam rrhe avyc")
+            server.sendmail("comp3334.project.group60@gmail.com", receiverMailAddress, message)
+            print("Email sent successfully!")
+        except Exception as e:
+            print("Error: failed to send verification code")
+        finally:
+            server.quit()
+
+
     def logout(self) -> Dict:
         """
         POST /api/logout
@@ -104,9 +119,6 @@ class Client_API:
             del self.session.headers['Authorization']
         
         return result
-
-
-
 
 
     # ============ Friend Management ============
