@@ -1,6 +1,6 @@
 import requests
 import os
-from typing import Dict
+from typing import Optional, Dict, List
 
 class Client_API:
     
@@ -125,4 +125,87 @@ class Client_API:
         
         return self._handle_response(response)
     
+    def send_friend_request(self, user_id: int, message: Optional[str] = None) -> Dict:
+        """
+        POST /api/friend-request
+        Send a friend request to another user
+        """
+        if not self.is_authenticated:
+            raise Exception("Must be logged in")
+        
+        data = {
+            'user_id': user_id
+        }
+        if message:
+            data['message'] = message
+        
+        response = self.session.post(
+            f"{self.base_url}/api/friend-request",
+            json=data
+        )
+        
+        return self._handle_response(response)
     
+    def accept_friend_request(self, request_id: int) -> Dict:
+        """
+        POST /api/accept-friend
+        Accept a pending friend request
+        """
+        if not self.is_authenticated:
+            raise Exception("Must be logged in")
+        
+        data = {
+            'request_id': request_id
+        }
+        
+        response = self.session.post(
+            f"{self.base_url}/api/accept-friend",
+            json=data
+        )
+        
+        return self._handle_response(response)
+
+    
+    
+        
+    # ============ Messaging ============
+    
+    def send_message(self, recipient_id: int, content: str, message_type: str = "text") -> Dict:
+        """
+        POST /api/send-message
+        Send a message to a friend
+        """
+        if not self.is_authenticated:
+            raise Exception("Must be logged in")
+        
+        if not content.strip():
+            raise Exception("Message content cannot be empty")
+        
+        data = {
+            'recipient_id': recipient_id,
+            'content': content
+        }
+        
+        response = self.session.post(
+            f"{self.base_url}/api/send-message",
+            json=data
+        )
+        
+        return self._handle_response(response)
+    
+    def get_offline_messages(self, limit: int = 50) -> List[Dict]:
+        """
+        GET /api/offline-messages
+        Get messages received while offline
+        """
+        if not self.is_authenticated:
+            raise Exception("Must be logged in")
+        
+        params = {'limit': limit}
+        
+        response = self.session.get(
+            f"{self.base_url}/api/offline-messages",
+            params=params
+        )
+        
+        return self._handle_response(response)
