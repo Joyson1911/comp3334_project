@@ -91,7 +91,6 @@ class Client_API:
             server.starttls()
             server.login("comp3334.project.group60@gmail.com", "nqmx mbam rrhe avyc")
             server.sendmail("comp3334.project.group60@gmail.com", receiverMailAddress, message)
-            print("Email sent successfully!")
         except Exception as e:
             print("Error: failed to send verification code")
         finally:
