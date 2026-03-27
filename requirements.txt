@@ -1,0 +1,11 @@
+# Core dependencies
+flask>=3.0.0
+requests>=2.32.0
+cryptography>=43.0.0
+
+# Optional but highly recommended for better development & production
+gunicorn>=23.0.0          # Production WSGI server for Flask (recommended)
+waitress>=3.0.0           # Pure Python alternative to gunicorn (good for Windows/Mac)
+
+# Development helpers
+python-dotenv>=1.0.0      # For loading .env files (optional but useful)
