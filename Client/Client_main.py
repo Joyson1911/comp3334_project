@@ -54,11 +54,10 @@ def main():
             if recipent == None:
                 "Please select the recipent first.\n"
                 continue
-            else:
-                content = input("Enter message: ")
-                msg = Message(content, sender, recipent)
-                #send the message out...
-                print("Message sent successfully\n")
+            content = input("Enter message: ")
+            msg = Message(content, sender, recipent)
+            #send the message out...
+            print("Message sent successfully\n")
         #Send friend request
         elif userInput == 3:
             #Send friend request
