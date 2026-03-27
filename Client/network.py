@@ -4,6 +4,8 @@ from typing import Dict
 
 class Client_API:
     
+    # ============ fundamental functions for API interaction ============
+    
     def __init__(self, base_url: str = "https://localhost:8000/api"):
         self.base_url = base_url
         self.session = requests.Session()
@@ -32,6 +34,7 @@ class Client_API:
             raise Exception(f"{error_msg}: {str(e)}")
         except requests.exceptions.RequestException as e:
             raise Exception(f"Request failed: {str(e)}")
+        
         
 
 
@@ -79,4 +82,47 @@ class Client_API:
             self._update_auth_header()
         
         return result
+    
+    def logout(self) -> Dict:
+        """
+        POST /api/logout
+        Invalidate current session/token
+        """
+        if not self.is_authenticated:
+            raise Exception("Not authenticated")
+        
+        response = self.session.post(
+            f"{self.base_url}/api/logout"
+        )
+        
+        result = self._handle_response(response)
+        
+        # Clear authentication
+        self.token = None
+        self.is_authenticated = False
+        if 'Authorization' in self.session.headers:
+            del self.session.headers['Authorization']
+        
+        return result
 
+
+
+
+
+    # ============ Friend Management ============
+    
+    def get_friends(self) -> List[Dict]:
+        """
+        GET /api/friends
+        Get list of user's friends
+        """
+        if not self.is_authenticated:
+            raise Exception("Must be logged in")
+        
+        response = self.session.get(
+            f"{self.base_url}/api/friends"
+        )
+        
+        return self._handle_response(response)
+    
+    
