@@ -43,7 +43,27 @@ class RSA():
         
     @classmethod
     def from_file(cls, pub_k_file: str, priv_k_file: str, password: str) -> RSA:
+        """Reads the public and private key from the given .pem file.
 
+        Parameters
+        ----------
+        pub_k_file : str
+            Path to the public key pem file.
+        priv_k_file : str
+            Path to the private key pem file.
+        password : str
+            Pass code for decrypting the saved private key.
+
+        Returns
+        -------
+        RSA
+            An RSA Instance
+
+        Raises
+        ------
+        InvalidKey
+            If one of the keys is not RSA key type.
+        """
         with open(pub_k_file, 'rb') as pub_f:
             public_key = ks.load_pem_public_key(pub_f.read())
             if not isinstance(public_key, RSAPublicKey): 
@@ -56,8 +76,18 @@ class RSA():
         return cls(public_key, private_key)
         
         
-    def save_keys(self, pub_k_file: str, priv_k_file: str, password: str):
+    def save_keys(self, pub_k_file: str, priv_k_file: str, password: str) -> None:
+        """Save the public key and private key to the given file path.
 
+        Parameters
+        ----------
+        pub_k_file : str
+            Path to save the public key pem file.
+        priv_k_file : str
+            Path to save the private key pem file.
+        password : str
+            Pass code for encrypting the private key.
+        """
         pub_k_file = pub_k_file + '.pem' if not pub_k_file.endswith('.pem') else pub_k_file
         priv_k_file = priv_k_file + '.pem' if not priv_k_file.endswith('.pem') else priv_k_file
         
@@ -78,10 +108,24 @@ class RSA():
                 )
             )
            
-           
-    def verify_sign(self, signature: bytes, message: bytes) -> bool:
+    @staticmethod
+    def verify_sign(signature: bytes, message: bytes, other_pub_k: RSAPublicKey) -> bool:
+        """Verifies the signature using the given public key.
+
+        Parameters
+        ----------
+        signature : bytes
+            Signature signed with other's private key.
+        message : bytes
+            Message encrypted by other's private key.
+
+        Returns
+        -------
+        bool
+            `True` if the signed message and the public key belong to the same entity, `False` otherwise.
+        """
         try:
-            self.__public_key.verify(
+            other_pub_k.verify(
                 signature,
                 message,
                 Padding.PSS.value,
@@ -92,6 +136,18 @@ class RSA():
             return False
     
     def sign_msg(self, message: bytes) -> bytes:
+        """Signs a message using self private key.
+
+        Parameters
+        ----------
+        message : bytes
+            Message to be encrypted.
+
+        Returns
+        -------
+        bytes
+            Signature of the signed message.
+        """
         return self.__private_key.sign(
             message, 
             Padding.PSS.value,
@@ -100,12 +156,38 @@ class RSA():
         
     @staticmethod
     def encrypt_msg(message: bytes, other_pub_k: RSAPublicKey) -> bytes:
+        """Encrypts the message using other's public key.
+
+        Parameters
+        ----------
+        message : bytes
+            Message bytes to be encrypted.
+        other_pub_k : RSAPublicKey
+            Public key of another entity.
+
+        Returns
+        -------
+        bytes
+            Encrypted bytes.
+        """
         return other_pub_k.encrypt(
             message,
             Padding.OAEP.value,
         )
         
     def decrypt_msg(self, cipher: bytes) -> bytes:
+        """Decrypts the cipher by self private key.
+
+        Parameters
+        ----------
+        cipher : bytes
+            Encrypted cipher bytes.
+
+        Returns
+        -------
+        bytes
+            Decrypted message bytes.
+        """
         return self.__private_key.decrypt(
             cipher,
             Padding.OAEP.value
@@ -113,6 +195,7 @@ class RSA():
 
     @staticmethod
     def __gen_key_pair(public_expo: int, bit_length: int) -> tuple[RSAPublicKey, RSAPrivateKey]:
+        # Generates a pair of public and private key for asymmetric crypting
         priv_k = rsa.generate_private_key(public_expo, bit_length)
         pub_k = priv_k.public_key()
         
