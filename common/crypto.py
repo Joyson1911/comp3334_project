@@ -7,9 +7,6 @@ from math import sqrt
 from random import randint
 from enum import Enum
 
-types.PublicKeyTypes
-
-
 class Padding(Enum):
     OAEP = padding.OAEP(
         mgf=padding.MGF1(algorithm=hashes.SHA256()),
