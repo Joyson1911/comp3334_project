@@ -7,6 +7,8 @@ ENV PYTHONUNBUFFERED=1
 # Create non-root user
 RUN adduser --disabled-password --gecos "" appuser
 
+WORKDIR /
+
 # Install dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
