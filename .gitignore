@@ -2,3 +2,5 @@ run/
 __pycache__/
 *.pyc
 *.pem
+*.ini
+*.json
