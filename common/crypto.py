@@ -200,7 +200,100 @@ class RSA():
         pub_k = priv_k.public_key()
         
         return pub_k, priv_k
-        
+
+import hashlib
+import base64
+
+class SHA256:
+    """Encapsulation class for SHA-256 hash operations.
+
+    Provides a consistent interface for computing SHA-256 hashes of text or binary data.
+    Useful for data integrity verification, token generation, and cryptographic operations.
+    """
+
+    def __init__(self, encoding: str = "utf-8"):
+        """Initialize the SHA-256 hasher.
+
+        Parameters
+        ----------
+        encoding: str
+            Character encoding for text input, default: utf-8.
+        """
+        self.encoding = encoding
+
+    def compute(self, data: str | bytes) -> str:
+        """Compute SHA-256 hash of the given data.
+
+        Parameters
+        ----------
+        data: str | bytes 
+            String or bytes to hash.
+
+        Returns
+        -------
+        str
+            Hexadecimal string representation of the hash (64 characters).
+
+        Examples
+        --------
+        >>> hasher = SHA256()
+        >>> hasher.compute("hello")
+            '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824'
+        """
+        if isinstance(data, str):
+            data = data.encode(self.encoding)
+        return hashlib.sha256(data).hexdigest()
+
+    def compute_raw(self, data: str | bytes) -> bytes:
+        """Compute SHA-256 hash and return raw bytes.
+
+        Parameters
+        ----------
+        data: str | bytes
+            String or bytes to hash.
+
+        Returns
+        -------
+        bytes
+            Raw byte representation of the hash.
+        """
+        if isinstance(data, str):
+            data = data.encode(self.encoding)
+        return hashlib.sha256(data).digest()
+
+    def compute_b64(self, data: str | bytes) -> str:
+        """Compute SHA-256 hash and return base64-encoded string.
+
+        Parameters
+        ----------
+        data: str | bytes
+            String or bytes to hash.
+
+        Returns
+        -------
+        str
+            Base64-encoded hex string of the hash.
+        """
+        hash_bytes = self.compute_raw(data)
+        return base64.b64encode(hash_bytes).decode("ascii")
+
+    def verify(self, data: str | bytes, expected_hash: str) -> bool:
+        """Verify that the data produces the expected hash.
+
+        Parameters
+        ----------
+        data: str | bytes
+            String or bytes to verify.
+        expected_hash: str
+            Expected hash in hexadecimal format.
+
+        Returns
+        -------
+        bool
+            True if hashes match, False otherwise.
+        """
+        actual_hash = self.compute(data)
+        return actual_hash == expected_hash
 
 def is_prime(n: int) -> bool:
     if n <= 1: return False
@@ -209,7 +302,6 @@ def is_prime(n: int) -> bool:
     for i in range(5, int(sqrt(n)) + 1, 6):
         if n % i == 0 or n % (i + 2) == 0: return False
     return True
-
 
 def is_prime_fast(n: int, k=5) -> bool:
     """Checks where an integere is prime number, using Miller-Rabin primality test. Faster for large integers
