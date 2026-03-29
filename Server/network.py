@@ -37,7 +37,7 @@ def authenticate_token(f):
 
 # ============ API Endpoints ============
 
-# 1. Register (Removed username)
+# 1. Register
 @app.route('/api/register', methods=['POST'])
 def register():
     data = request.get_json()
@@ -62,7 +62,7 @@ def register():
         'user': {'email': new_user['email']}
     }), 201
 
-# 2. Login (Uses email instead of username)
+# 2. Login 
 @app.route('/api/login', methods=['POST'])
 def login():
     data = request.get_json()
@@ -83,7 +83,19 @@ def login():
         'user': {'email': user['email']}
     })
 
-# 3. Get friends list
+# 3. Logout
+@app.route('/api/logout', methods=['POST'])
+@authenticate_token
+def logout():
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else None
+    
+    if token and token in sessions:
+        del sessions[token]
+    
+    return jsonify({'message': 'Logout successful'})
+
+# 4. Get friends list
 @app.route('/api/friends', methods=['GET'])
 @authenticate_token
 def get_friends():
@@ -96,7 +108,7 @@ def get_friends():
     
     return jsonify(friend_list)
 
-# 4. Send friend request
+# 5. Send friend request
 @app.route('/api/friend-request', methods=['POST'])
 @authenticate_token
 def send_friend_request():
@@ -126,7 +138,7 @@ def send_friend_request():
     friend_requests.append(new_request)
     return jsonify({'message': 'Request sent', 'request_id': new_request['id']})
 
-# 5. Accept friend request
+# 6. Accept friend request
 @app.route('/api/accept-friend', methods=['POST'])
 @authenticate_token
 def accept_friend():
@@ -143,7 +155,7 @@ def accept_friend():
     
     return jsonify({'message': 'Friend accepted'})
 
-# 6. Send Message
+# 7. Send Message
 @app.route('/api/send-message', methods=['POST'])
 @authenticate_token
 def send_message():
@@ -182,7 +194,7 @@ def send_message():
         'message_id': new_message['id']
     })
 
-# 7. Get Offline Messages
+# 8. Get Offline Messages
 @app.route('/api/offline-messages', methods=['GET'])
 @authenticate_token
 def get_offline_messages():
