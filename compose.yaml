@@ -11,27 +11,30 @@ version: "3.9"
 
 services:
   server:
-      build: .
-      working_dir: /run/Server
-      volumes:
-        - ./Server:/run/Server:ro
-        - ./run/Server:/run/Server/output
-      ports:
-        - "8800:8800"
-      command: ["gunicorn", "--bind", "0.0.0.0:8800", "--workers", "2", "Server_main:app"]
+    build:
+      context: .          # ← Important: root of project
+      dockerfile: Dockerfile
+    working_dir: /run/Server
+    volumes:
+      - ./Server:/run/Server:ro
+      - ./common:/run/common:ro     # ← Mount shared code
+      - ./run/Server:/run/Server/output
+    ports:
+      - "8800:8800"
+    command: ["gunicorn", "--bind", "0.0.0.0:8800", "--workers", "2", "Server_main:app"]
     # restart: unless-stopped
 
   client:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     working_dir: /run/Clients
     volumes:
-      - ./Client:/run/Clients:ro         # Read-only for source code
-      - ./run/Clients:/run/Clients/output # Writable output directory
+      - ./Client:/run/Clients:ro
+      - ./common:/run/common:ro     # ← Mount shared code
+      - ./run/Clients:/run/Clients/output
     command: ["python", "Client_main.py"]
-    #restart: unless-stopped
-    # Remove stdin_open and tty if you don't need interactive mode
-    # stdin_open: true
-    # tty: true
+    # restart: "no"  
 
 # The commented out section below is an example of how to define a PostgreSQL
 # database that your application can use. `depends_on` tells Docker Compose to
