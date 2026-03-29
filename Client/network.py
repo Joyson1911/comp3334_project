@@ -1,12 +1,11 @@
 import requests
-import os
 from typing import Optional, Dict, List
 
 class Client_API:
     
     # ============ fundamental functions for API interaction ============
     
-    def __init__(self, base_url: str = "https://localhost:8000/api"):
+    def __init__(self, base_url: str = "https://localhost:3000"):
         self.base_url = base_url
         self.session = requests.Session()
         self.token = None
@@ -35,18 +34,22 @@ class Client_API:
         except requests.exceptions.RequestException as e:
             raise Exception(f"Request failed: {str(e)}")
         
-        
+    def _update_auth_header(self):
+        # Update authorization header with current token
+        if self.token:
+            self.session.headers.update({
+                'Authorization': f'Bearer {self.token}'
+            })
 
 
     # ============ register and login ============
     
-    def register(self, username: str, email: str, password: str) -> Dict:
+    def register(self, email: str, password: str) -> Dict:
         """
         POST /api/register
         Create a new user account
         """
         data = {
-            'username': username,
             'email': email,
             'password': password
         }
@@ -58,13 +61,13 @@ class Client_API:
         
         return self._handle_response(response)
     
-    def login(self, username: str, password: str) -> Dict:
+    def login(self, email: str, password: str) -> Dict:
         """
         POST /api/login
         Authenticate user and get access token
         """
         data = {
-            'username': username,
+            'email': email,
             'password': password
         }
         
@@ -122,7 +125,7 @@ class Client_API:
         
         return self._handle_response(response)
     
-    def send_friend_request(self, user_id: int, message: Optional[str] = None) -> Dict:
+    def send_friend_request(self, user_email: str, message: Optional[str] = None) -> Dict:
         """
         POST /api/friend-request
         Send a friend request to another user
@@ -131,7 +134,7 @@ class Client_API:
             raise Exception("Must be logged in")
         
         data = {
-            'user_id': user_id
+            'user_email': user_email
         }
         if message:
             data['message'] = message
@@ -167,7 +170,7 @@ class Client_API:
         
     # ============ Messaging ============
     
-    def send_message(self, recipient_id: int, content: str, message_type: str = "text") -> Dict:
+    def send_message(self, content: str, sender_email: str, recipient_email: str, time: str) -> Dict:
         """
         POST /api/send-message
         Send a message to a friend
@@ -179,8 +182,10 @@ class Client_API:
             raise Exception("Message content cannot be empty")
         
         data = {
-            'recipient_id': recipient_id,
-            'content': content
+            'content': content,
+            'from': sender_email,
+            'to': recipient_email,
+            'timestamp': time
         }
         
         response = self.session.post(
