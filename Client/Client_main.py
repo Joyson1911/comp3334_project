@@ -6,7 +6,7 @@ from getpass import getpass
 class Status:
     
     def __init__(self, sender: str):
-        self.sender = None
+        self.sender = sender
         self.recipent = None
         self.friends = []
         self.msg_buff:Message = []
@@ -71,7 +71,7 @@ def main():
                         print("Email successfully verified.\n")
                         break
                     print("Verification Code incorrect. Please try again.\n")
-                #Set password
+
                 password1 = "1"
                 password2 = "2"
                 while True:
@@ -90,7 +90,6 @@ def main():
 
         #User account interface
         print("Logged in")
-        status.recipent = "happy"
         while loggedIn:
 
             status.printMessage()
@@ -157,6 +156,6 @@ def readInteger(limit: int):
         valid = True
 
     return userInput
-        
+
 if __name__ == "__main__":
     main()
