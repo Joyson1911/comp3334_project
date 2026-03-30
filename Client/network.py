@@ -44,14 +44,15 @@ class Client_API:
 
     # ============ register and login ============
     
-    def register(self, email: str, password: str) -> Dict:
+    def register(self, email: str, password: str, otp: int) -> Dict:
         """
         POST /api/register
         Create a new user account
         """
         data = {
             'email': email,
-            'password': password
+            'password': password,
+            'otp': otp
         }
         
         response = self.session.post(
@@ -61,14 +62,15 @@ class Client_API:
         
         return self._handle_response(response)
     
-    def login(self, email: str, password: str) -> Dict:
+    def login(self, email: str, password: str, otp: int) -> Dict:
         """
         POST /api/login
         Authenticate user and get access token
         """
         data = {
             'email': email,
-            'password': password
+            'password': password,
+            'otp': otp
         }
         
         response = self.session.post(

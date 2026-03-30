@@ -1,10 +1,17 @@
 from flask import Flask, request, jsonify
 from functools import wraps
 import secrets
+# from common.crypto import RSA, SHA256   
 
 app = Flask(__name__)
 
 # In-memory storage
+"""
+Note!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
+In-memory storage should be replaced by a proper database.
+database.py should be implemented to handle the following data structures and operations:
+
+"""
 users = []
 friends = []
 friend_requests = []
@@ -43,9 +50,10 @@ def register():
     data = request.get_json()
     email = data.get('email')
     password = data.get('password')
+    otp = data.get('otp') 
     
-    if not email or not password:
-        return jsonify({'error': 'Email and password are required'}), 400
+    if not email or not password or not otp:
+        return jsonify({'error': 'Email, password, and OTP are required'}), 400
     
     if find_user_by_email(email):
         return jsonify({'error': 'Email already exists'}), 409
@@ -53,7 +61,8 @@ def register():
     new_user = {
         'id': len(users) + 1,
         'email': email,
-        'password': password
+        'password': password,
+        'otp': otp
     }
     
     users.append(new_user)
@@ -68,10 +77,11 @@ def login():
     data = request.get_json()
     email = data.get('email')
     password = data.get('password')
+    otp = data.get('otp')
     
     user = find_user_by_email(email)
     
-    if not user or user['password'] != password:  
+    if not user or user['password'] != password or not otp:
         return jsonify({'error': 'Invalid credentials'}), 401
     
     token = generate_token()
