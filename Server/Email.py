@@ -1,12 +1,18 @@
 import smtplib
+from common.config import Config
+
+
 
 def emailVerification(verCode: int, receiverMailAddress: str):
-    message = "Verification Code: " + verCode
+    Conf = Config.get()
+    ADDR = Conf['EMAIL']['address']
+    PW = Conf['EMAIL']['password']
+    message = "Verification Code: " + str(verCode)
     try:
         server = smtplib.SMTP("smtp.gmail.com", 587)
         server.starttls()
-        server.login("comp3334.project.group60@gmail.com", "nqmx mbam rrhe avyc")
-        server.sendmail("comp3334.project.group60@gmail.com", receiverMailAddress, message)
+        server.login(ADDR, PW)
+        server.sendmail(ADDR, receiverMailAddress, message)
     except Exception as e:
         print("Error: failed to send verification code")
     finally:

@@ -1,23 +1,17 @@
 from flask import Flask, jsonify, request
 import mysql.connector
 from mysql.connector import Error
-import configparser
-
-# Create a ConfigParser object
-config = configparser.ConfigParser()
-
+from common.config import Config
 
 app = Flask(__name__)
 
 # ====================== Database Configuration ======================
-DB_CONFIG = config.read('databaseConfig.ini') 
-
-
+Conf = Config.get()
 
 # Helper function to get a new database connection
 def get_db_connection():
     try:
-        connection = mysql.connector.connect(**DB_CONFIG)
+        connection = mysql.connector.connect(**Conf['SERVER'])
         return connection
     except Error as e:
         print(f"Error connecting to MySQL: {e}")
