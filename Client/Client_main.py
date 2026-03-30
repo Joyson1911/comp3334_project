@@ -1,75 +1,147 @@
 from messaging import Message
+import os
+#from network import Client_API
+from getpass import getpass
 
+class Status:
+    
+    def __init__(self, sender: str):
+        self.sender = None
+        self.recipent = None
+        self.friends = []
+        self.msg_buff:Message = []
+
+    def printMessage(self):
+        for msg in self.msg_buff:
+            print(f"{msg.sender}: {msg.content}")
+
+    def printFriends(self):
+        count = 1
+        for frd in self.friends:
+            print(f"{count}. {frd}")
+            count+=1
+
+    def updateMsgBuffer(self, index):
+        #fetch messages from server
+        ...
+
+    def readFriends(self):
+        #read friends from file
+        ...
 
 def main():
     
     print("Started")
-
     running = True
-    loggedIn = False
 
-    while not loggedIn:
-        print("Select Operation:\n" \
-              "1. Login\n" \
-              "2. Register\n" \
-              "3. Exit program")
-        
-        userInput = readInteger(4)
-        if userInput == 1:
-            #logging in...
-            loggedIn = True
-            print("Logged in successfully\n")
-        elif userInput == 2:
-            #registering account...
-            print("Account registered successfully.\n")
-            continue
-        elif userInput == 3:
-            running = False
-            break
-    
-    sender = "SenderMailAddress"
     while running:
-        recipent = None
-        friends =["Alice","Bob"]
-        #readFriends(friends)
+        loggedIn = False
+        #connection = Client_API()
 
-        print("Select Operation:\n" \
-              "1. Select friends\n" \
-              "2. Send messages\n" \
-              "3. Send friend request\n"
-              "4. Exit program")
-        
-        userInput = readInteger(5)
-        #Select friend
-        if userInput == 1:
-            count = 1
-            for frd in friends:
-                print(f"{count}. {frd}")
-                count+=1
-            userInput = readInteger(len(friends)+1)
-            recipent = friends[userInput-1]
+        #Log in interface
+        while not loggedIn:
+            print("Select Operation:\n" \
+                "1. Login\n" \
+                "2. Register\n" \
+                "3. Exit program")
+            userInput = readInteger(4)
+
+            if userInput == 1:
+                while True:
+                    email = input("Email Address: ")
+                    verCode = input("Verification Code: ")
+                    if True:# if verCode is correct break
+                        print("Email successfully verified.\n")
+                        break
+                while True:
+                    password = getpass("Password: ")
+                    if True: #if password is correct
+                        break
+                    print("Password incorrect. Please try again.\n")
+                print("Logging in...\n")
+                loggedIn = True
+                status = Status("senderEmail")
+
+            elif userInput == 2:
+                while True:
+                    email = input("Email Address: ")
+                    #Ask server to send OTP
+                    verCode = input("Verfication Code: ")
+                    if True:#if verCode is correct
+                        print("Email successfully verified.\n")
+                        break
+                    print("Verification Code incorrect. Please try again.\n")
+                #Set password
+                password1 = "1"
+                password2 = "2"
+                while True:
+                    password1 = getpass("Set password: ")
+                    password2 = getpass("Enter password again: ")
+                    if password1 == password2:
+                        print("Passwords match.\n")
+                        break
+                    print("Passwords do not match. Please try again.\n")
+                #registering account...
+                print("Account registered successfully. You may now log in.\n")
+            elif userInput == 3:
+                print("Program ended.\n")
+                running = False
+                break
+
+        #User account interface
+        print("Logged in")
+        status.recipent = "happy"
+        while loggedIn:
+
+            status.printMessage()
+            print("Select Operation:\n" \
+                "1. Select friends\n" \
+                "2. Send messages\n" \
+                "3. Send friend request\n"\
+                "4. Log out")
             
-        #Send message
-        elif userInput == 2:
-            if recipent == None:
-                "Please select the recipent first.\n"
-                continue
-            content = input("Enter message: ")
-            msg = Message(content, sender, recipent)
-            #send the message out...
-            print("Message sent successfully\n")
-        #Send friend request
-        elif userInput == 3:
+            userInput = readInteger(5)
+            #Select friend
+            if userInput == 1:
+                status.readFriends()
+                status.printFriends()
+                if len(status.friends) == 0:
+                    print("You have no friends at the moment. Send friend request to invite them.\n")
+                    continue
+                userInput = readInteger(len(status.friends)+1)
+                status.recipent = status.friends[userInput-1]
+                status.updateMsgBuffer()
+                
+            #Send message
+            elif userInput == 2:
+                if status.recipent == None:
+                    print("Please select the recipent first.\n")
+                    continue
+                content = input("Enter message: ")
+                msg = Message(content, status.sender, status.recipent)
+                #Modify message buffer...
+                #send the message out...
+                print(f"Message sent to user: {status.recipent}.\n")
+
             #Send friend request
-            ...
-        elif userInput == 4:
-            running = False
+            elif userInput == 3:
+                while True:
+                    name = input("Send friend request with the email of the user: ")
+                    if True: #if email is valid
+                        break
+                #Send friend request to server
+                print(f"Friend request sent to user: {name}.\n")
 
+            #Log out
+            elif userInput == 4:
+                status = None
+                loggedIn = False  
+                os.system("cls")
+                print("Logged out.\n")
+                break
 
-def readFriends(friends):
-    ...
-
-#read an integer in the range from 1 to limit-1
+#Read an integer in the range from 1 to limit-1
+#e.g. read(4) accept input of 1,2,3 only and reject anything else
 def readInteger(limit: int):
     valid = False
     while not valid:
