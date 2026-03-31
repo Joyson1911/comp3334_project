@@ -2,10 +2,13 @@ from messaging import Message
 import os
 #from network import Client_API
 from getpass import getpass
+import threading
+import time
 
 class Status:
     
     def __init__(self, sender: str):
+        self.alive = True
         self.sender = sender
         self.recipent = None
         self.friends = []
@@ -28,6 +31,13 @@ class Status:
     def readFriends(self):
         #read friends from file
         ...
+
+    def checkIfExpired(self):
+        while self.alive:
+            for i in range(len(self.msg_buff)-1, -1, -1):
+                if self.msg_buff[i].isExpired():
+                    del self.msg_buff[i]
+            time.sleep(1)
 
 def main():
     
@@ -60,7 +70,6 @@ def main():
                     print("Password incorrect. Please try again.\n")
                 print("Logging in...\n")
                 loggedIn = True
-                status = Status("senderEmail")
 
             elif userInput == 2:
                 while True:
@@ -89,6 +98,9 @@ def main():
                 break
 
         #User account interface
+        status = Status("senderEmail")
+        expiryChecker = threading.Thread(target=status.checkIfExpired)
+        expiryChecker.start()
         print("Logged in")
         while loggedIn:
 
@@ -133,8 +145,10 @@ def main():
 
             #Log out
             elif userInput == 4:
-                status = None
                 loggedIn = False  
+                status.alive = False
+                expiryChecker.join()
+                status = None
                 os.system("cls")
                 print("Logged out.\n")
                 break
