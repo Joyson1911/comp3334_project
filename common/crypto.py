@@ -30,7 +30,7 @@ class RSA():
     
     @classmethod
     def create(cls, public_expo: int = 65537, bit_length: int = 2048) -> RSA:
-        """Creates a RSA encryption instance with given parameters.
+        """Creates an RSA encryption instance with given parameters.
 
         Parameters
         ----------
@@ -40,73 +40,50 @@ class RSA():
             Expected bit length of the key, longer is better, by default 2048
         """
         return cls(*RSA.__gen_key_pair(public_expo, bit_length))
-        
+    
     @classmethod
-    def from_file(cls, pub_k_file: str, priv_k_file: str, password: str) -> RSA:
-        """Reads the public and private key from the given .pem file.
+    def from_str(cls, pub_key_str: str, priv_key_str: str, password: str) -> RSA:
+        """Creates an RSA instance by the given key string and decryption code.
 
         Parameters
         ----------
-        pub_k_file : str
-            Path to the public key pem file.
-        priv_k_file : str
-            Path to the private key pem file.
+        pub_key_str : str
+            PEM public key string.
+        priv_key_str : str
+            PEM private key string.
         password : str
-            Pass code for decrypting the saved private key.
-
-        Returns
-        -------
-        RSA
-            An RSA Instance
+            Password to decrypt the private key.
 
         Raises
         ------
         InvalidKey
-            If one of the keys is not RSA key type.
+            If one of the key strings is not a RSA PEM key.
         """
-        with open(pub_k_file, 'rb') as pub_f:
-            public_key = ks.load_pem_public_key(pub_f.read())
-            if not isinstance(public_key, RSAPublicKey): 
-                raise InvalidKey(f'Public key read from {pub_f} is not a RSA public key.')
-        with open(priv_k_file, 'rb') as priv_f:
-            private_key = ks.load_pem_private_key(priv_f.read(), password.encode())
-            if not isinstance(private_key, RSAPrivateKey): 
-                raise InvalidKey(f'Private key read from {priv_f} is not a RSA private key.')
-            
+        public_key = ks.load_pem_public_key(pub_key_str.encode())
+        private_key = ks.load_pem_private_key(priv_key_str.encode(), password.encode())
+        if not isinstance(public_key, RSAPublicKey): 
+            raise InvalidKey(f'Public key read is not a RSA public key.')
+        if not isinstance(private_key, RSAPrivateKey): 
+            raise InvalidKey(f'Private key read is not a RSA private key.')
         return cls(public_key, private_key)
         
-        
-    def save_keys(self, pub_k_file: str, priv_k_file: str, password: str) -> None:
-        """Save the public key and private key to the given file path.
-
-        Parameters
-        ----------
-        pub_k_file : str
-            Path to save the public key pem file.
-        priv_k_file : str
-            Path to save the private key pem file.
-        password : str
-            Pass code for encrypting the private key.
-        """
-        pub_k_file = pub_k_file + '.pem' if not pub_k_file.endswith('.pem') else pub_k_file
-        priv_k_file = priv_k_file + '.pem' if not priv_k_file.endswith('.pem') else priv_k_file
-        
-        with open(pub_k_file, 'wb') as pub_f:
-            pub_f.write(
-                self.__public_key.public_bytes( 
+    def pub_key_str(self) -> str:
+        """Gets the public key string in PEM format."""
+        return self.__public_key.public_bytes( 
                     encoding=ks.Encoding.PEM,
                     format=ks.PublicFormat.SubjectPublicKeyInfo
-                )
-            )
+                ).decode()
         
-        with open(priv_k_file, 'wb') as priv_f:
-            priv_f.write(
-                self.__private_key.private_bytes( 
+    def priv_key_enc_str(self, password: str) -> str:
+        """Gets the private ket string in PEM encoded by given password
+        
+            Note: Password should not be empty.
+        """
+        return self.__private_key.private_bytes( 
                     encoding=ks.Encoding.PEM,
                     format=ks.PrivateFormat.PKCS8,
                     encryption_algorithm=ks.BestAvailableEncryption(password.encode())
-                )
-            )
+                ).decode()
            
     @staticmethod
     def verify_sign(signature: bytes, message: bytes, other_pub_k: RSAPublicKey) -> bool:
@@ -294,47 +271,3 @@ class SHA256:
         """
         actual_hash = self.compute(data)
         return actual_hash == expected_hash
-
-def is_prime(n: int) -> bool:
-    if n <= 1: return False
-    if n <= 3: return True
-    if n % 2 == 0 or n % 3 == 0: return False
-    for i in range(5, int(sqrt(n)) + 1, 6):
-        if n % i == 0 or n % (i + 2) == 0: return False
-    return True
-
-def is_prime_fast(n: int, k=5) -> bool:
-    """Checks where an integere is prime number, using Miller-Rabin primality test. Faster for large integers
-
-    Parameters
-    ----------
-    n : int
-        The integer to be tested
-    k : int, optional
-        Number of iteration to increase test accuracy, by default 5
-
-    Returns
-    -------
-    bool
-        Whether n is a prime
-    """
-    
-    
-    if n <= 1: return False
-    if n <= 3: return True
-    if n % 2 == 0: return False
-    # Factor n-1 as 2^r * d
-    r, d = 0, n - 1
-    while d % 2 == 0:
-        d //= 2
-        r += 1
-    # Witness loop
-    for _ in range(k):
-        a = randint(2, n - 2)
-        x = pow(a, d, n)
-        if x == 1 or x == n - 1: continue
-        for _ in range(r - 1):
-            x = pow(x, 2, n)
-            if x == n - 1: break
-        else: return False # Composite
-    return True # Probably prime
