@@ -19,7 +19,7 @@ class Message:
             The time the message is created, by default None for the instant time the class is created.
             Note that messages could be sent by others and are created before receiving.
         lifetime : int, optional
-            The message life time before it is detroyed, by default -1 for lasting forever.
+            The message life time in seconds before it is detroyed, by default -1 for lasting forever.
         """
         self.message = content
         self.sender = sender
