@@ -185,6 +185,10 @@ class UI:
         for i in range(len(messages)):
             self.msg_win.addstr(i+1, 0, f"{messages[i].sender}: {messages[i].message}")
             self.msg_win.clrtoeol()
+        #This part is needed if the messages size could be smaller than 10
+        for i in range(len(messages)+1, 11):
+            self.msg_win.move(i, 0)
+            self.msg_win.clrtoeol()
         self.msg_win.refresh()
 
     def displayFriend(self, friends):
