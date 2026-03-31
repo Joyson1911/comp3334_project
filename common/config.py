@@ -2,8 +2,6 @@ import configparser
 from os.path import exists, isfile
 from os import getcwd
 
-
-CONFIGS = None
 class Config():
     _config = configparser.ConfigParser()
     

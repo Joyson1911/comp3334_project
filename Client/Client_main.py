@@ -12,11 +12,11 @@ class Status:
         self.sender = sender
         self.recipent = None
         self.friends = []
-        self.msg_buff:Message = []
+        self.msg_buff: list[Message] = []
 
     def printMessage(self):
         for msg in self.msg_buff:
-            print(f"{msg.sender}: {msg.content}")
+            print(f"{msg.sender}: {msg.message}")
 
     def printFriends(self):
         count = 1
