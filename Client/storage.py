@@ -3,8 +3,9 @@ from os import urandom
 from os.path import exists
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
+from cryptography.exceptions import InvalidTag
 
-from common.crypto import SHA256
+from crypto import SHA256
 
 class SecureStorage:
     
@@ -24,6 +25,7 @@ class SecureStorage:
         return kdf.derive(password.encode())
     
     def _load_from_disk(self) -> dict:
+        
         if not exists(self.filepath) :
             # Default structure for a new user
             return {
@@ -32,24 +34,34 @@ class SecureStorage:
                     "pub_key": "", 
                     "priv_key_enc": ""
                 },
-                "contacts": []
+                "contacts": {}
             }
+        try:    
+            with open(self.filepath, 'rb') as f:
+                data = f.read()
             
-        with open(self.filepath, 'rb') as f:
-            data = f.read()
-        
-        # AES-GCM: First 12 bytes are Nonce, rest is Ciphertext
-        nonce = data[:12]
-        ciphertext = data[12:]
-        
-        # Decrypt using the key
-        aesgcm = AESGCM(self.file_enc_key)
-        decrypted = aesgcm.decrypt(nonce, ciphertext, None)
-        
-        # Convert bytes back to a Python Dictionary
-        return json.loads(decrypted)
+            # AES-GCM: First 12 bytes are Nonce, rest is Ciphertext
+            nonce = data[:12]
+            ciphertext = data[12:]
+            
+            # Decrypt using the key
+            aesgcm = AESGCM(self.file_enc_key)
+            decrypted = aesgcm.decrypt(nonce, ciphertext, None)
+            
+            # Convert bytes back to a Python Dictionary
+            return json.loads(decrypted)
 
-        # should not replace the exception with just a warning.
+        except InvalidTag as e:
+            print("Invalid password or corrupted file")
+            return None
+        
+        except FileNotFoundError as e:
+            print("Error loading data from disk")
+            return None
+        
+        except Exception as e:
+            print(f"An unexpected error occurred: {type(e).__name__} - {e}")
+            return None
     
     def save(self):
         """
