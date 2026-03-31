@@ -234,18 +234,17 @@ class UI:
         self.input_win.refresh()
         valid = False
         while not valid:
+            self.input_win.move(y, x) 
             self.input_win.clrtoeol()
             self.input_win.refresh()
             try:
                 userInput = int(self.input_win.getstr().decode())
             except ValueError:
-                self.showFeedback("Invalid input. Please try again.")
-                self.input_win.move(y, x) 
+                self.showFeedback("Invalid input. Please try again.")   
                 continue
             #read only positive integer within the range
             if userInput>=limit or userInput<1:
                 self.showFeedback("Invalid input. Please try again.")
-                self.input_win.move(y, x) 
                 continue
             valid = True
             self.clearFeedback()
