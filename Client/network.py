@@ -1,215 +1,342 @@
-import requests
-from typing import Optional, Dict, List
+import socketio
+import threading
+import time
+from typing import Callable
 
 class Client_API:
+    """
+    Pure WebSocket chat client for real-time messaging application.
+    All communication happens through WebSocket connection.
+    """
     
-    # ============ fundamental functions for API interaction ============
-    
-    def __init__(self, base_url: str = "https://localhost:3000"):
-        self.base_url = base_url
-        self.session = requests.Session()
-        self.token = None
-        self.is_authenticated = False
+    def __init__(self, server_url: str = "http://localhost:3000"):
+        """
+        Initialize chat client
         
-        # Set default headers
-        self.session.headers.update({
-            'User-Agent': 'comp3334/1.0',
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-        })
-
-    def _handle_response(self, response: requests.Response) -> Dict:
-        # Handle API response with error checking
-        try:
-            response.raise_for_status()
-            return response.json() if response.content else {}
-        except requests.exceptions.HTTPError as e:
-            error_msg = f"HTTP Error {response.status_code}"
+        Args:
+            server_url: WebSocket server URL (e.g., http://localhost:3000)
+        """
+        self.server_url = server_url
+        self.sio = socketio.Client()
+        self.token = None
+        self.user_email = None
+        self.is_authenticated = False
+        self.is_connected = False
+        
+        # Callback functions for application layer
+        self.on_message = None              # Called when new message received
+        self.on_friend_request = None       # Called when friend request received
+        self.on_friend_accepted = None      # Called when friend request accepted
+        self.on_offline_messages = None     # Called when offline messages received
+        self.on_friends_update = None       # Called when friend list updated
+        self.on_connected = None            # Called when WebSocket connected
+        self.on_disconnected = None         # Called when WebSocket disconnected
+        
+        # Setup event handlers
+        self._setup_handlers()
+        
+        # Background thread for WebSocket
+        self.thread = None
+        self.running = False
+    
+    def _setup_handlers(self):
+        """Setup all WebSocket event handlers"""
+        
+        @self.sio.event
+        def connect():
+            """Handle successful WebSocket connection"""
+            self.is_connected = True
+            print("Connected to server")
+            if self.on_connected:
+                self.on_connected()
+        
+        @self.sio.event
+        def disconnect():
+            """Handle WebSocket disconnection"""
+            self.is_connected = False
+            print("Disconnected from server")
+            if self.on_disconnected:
+                self.on_disconnected()
+        
+        @self.sio.on('connected')
+        def on_connected(data):
+            """Handle connection confirmation from server"""
+            print(f"Welcome")
+        
+        @self.sio.on('new_message')
+        def on_new_message(data):
+            """Handle incoming real-time message"""
+            print(f"Message from {data['from']}: {data['content']}")
+            if self.on_message:
+                self.on_message(data)
+        
+        @self.sio.on('offline_messages')
+        def on_offline_messages(messages):
+            """Handle offline messages when user connects"""
+            print(f"Received {len(messages)} offline messages")
+            if self.on_offline_messages:
+                self.on_offline_messages(messages)
+            # Also trigger individual message callbacks
+            for msg in messages:
+                if self.on_message:
+                    self.on_message(msg)
+        
+        @self.sio.on('friend_request_received')
+        def on_friend_request(data):
+            """Handle incoming friend request"""
+            print(f"Friend Request: {data['from']} wants to add you as a friend")
+            if self.on_friend_request:
+                self.on_friend_request(data)
+        
+        @self.sio.on('friend_request_accepted')
+        def on_friend_accepted(data):
+            """Handle friend request acceptance notification"""
+            print(f"Success: {data['friend_email']} accepted your friend request")
+            if self.on_friend_accepted:
+                self.on_friend_accepted(data)
+        
+        @self.sio.on('friends_list')
+        def on_friends_list(friends):
+            """Handle friend list response"""
+            print(f"Friends list: {len(friends)} people")
+            for friend in friends:
+                status = "online" if friend.get('online') else "offline"
+                print(f"   - {friend['email']} ({status})")
+            if self.on_friends_update:
+                self.on_friends_update(friends)
+        
+        @self.sio.on('online_status')
+        def on_online_status(status):
+            """Handle online status response"""
+            for email, online in status.items():
+                print(f"{email}: {'online' if online else 'offline'}")
+        
+        @self.sio.on('error')
+        def on_error(data):
+            """Handle server errors"""
+            print(f"Error: {data}")
+    
+    def connect(self):
+        """
+        Connect to WebSocket server (non-blocking)
+        Starts background thread to handle WebSocket connection
+        """
+        def connect_thread():
             try:
-                error_data = response.json()
-                error_msg = error_data.get('message', error_msg)
-            except:
-                pass
-            raise Exception(f"{error_msg}: {str(e)}")
-        except requests.exceptions.RequestException as e:
-            raise Exception(f"Request failed: {str(e)}")
+                self.sio.connect(self.server_url, transports=['websocket'])
+                self.sio.wait()  # Block and maintain connection
+            except Exception as e:
+                print(f"Connection failed: {e}")
+                self.is_connected = False
         
-    def _update_auth_header(self):
-        # Update authorization header with current token
-        if self.token:
-            self.session.headers.update({
-                'Authorization': f'Bearer {self.token}'
-            })
-
-
-    # ============ register and login ============
+        self.thread = threading.Thread(target=connect_thread, daemon=True)
+        self.thread.start()
+        
+        # Wait a moment for connection to establish
+        time.sleep(0.5)
     
-    def register(self, email: str, password: str, otp: int) -> Dict:
+    def disconnect(self):
+        """Disconnect from WebSocket server"""
+        if self.is_connected:
+            self.sio.disconnect()
+            self.is_connected = False
+    
+    # ============ Authentication Methods ============
+    
+    def register(self, email: str, password: str, otp: int, callback: Callable = None):
         """
-        POST /api/register
-        Create a new user account
+        Register a new user account
         """
-        data = {
+        def on_response(data):
+            if data.get('success'):
+                print(f"Registration successful: {email}")
+            else:
+                print(f"Registration failed: {data.get('error')}")
+            if callback:
+                callback(data)
+        
+        self.sio.on('register_response', on_response)
+        self.sio.emit('register', {
             'email': email,
             'password': password,
             'otp': otp
-        }
-        
-        response = self.session.post(
-            f"{self.base_url}/api/register",
-            json=data
-        )
-        
-        return self._handle_response(response)
+        })
     
-    def login(self, email: str, password: str, otp: int) -> Dict:
+    def login(self, email: str, password: str, otp: int, callback: Callable = None):
         """
-        POST /api/login
-        Authenticate user and get access token
+        Login to existing account
         """
-        data = {
+        def on_response(data):
+            if data.get('success'):
+                self.token = data['access_token']
+                self.user_email = email
+                self.is_authenticated = True
+                print(f"Login successful: {email}")
+            else:
+                print(f"Login failed: {data.get('error')}")
+            if callback:
+                callback(data)
+        
+        self.sio.on('login_response', on_response)
+        self.sio.emit('login', {
             'email': email,
             'password': password,
             'otp': otp
-        }
-        
-        response = self.session.post(
-            f"{self.base_url}/api/login",
-            json=data
-        )
-        
-        result = self._handle_response(response)
-        
-        # Store token for subsequent requests
-        if 'access_token' in result:
-            self.token = result['access_token']
-            self.is_authenticated = True
-            self._update_auth_header()
-        
-        return result
-
-    def logout(self) -> Dict:
-        """
-        POST /api/logout
-        Invalidate current session/token
-        """
-        if not self.is_authenticated:
-            raise Exception("Not authenticated")
-        
-        response = self.session.post(
-            f"{self.base_url}/api/logout"
-        )
-        
-        result = self._handle_response(response)
-        
-        # Clear authentication
+        })
+    
+    def logout(self):
+        """Logout from current session"""
+        self.sio.emit('logout', {})
         self.token = None
+        self.user_email = None
         self.is_authenticated = False
-        if 'Authorization' in self.session.headers:
-            del self.session.headers['Authorization']
-        
-        return result
-
-
-    # ============ Friend Management ============
+        print("Logged out")
     
-    def get_friends(self) -> List[Dict]:
-        """
-        GET /api/friends
-        Get list of user's friends
-        """
-        if not self.is_authenticated:
-            raise Exception("Must be logged in")
-        
-        response = self.session.get(
-            f"{self.base_url}/api/friends"
-        )
-        
-        return self._handle_response(response)
+    # ============ Friend Management Methods ============
     
-    def send_friend_request(self, user_email: str, message: Optional[str] = None) -> Dict:
-        """
-        POST /api/friend-request
-        Send a friend request to another user
-        """
-        if not self.is_authenticated:
-            raise Exception("Must be logged in")
-        
-        data = {
-            'user_email': user_email
-        }
-        if message:
-            data['message'] = message
-        
-        response = self.session.post(
-            f"{self.base_url}/api/friend-request",
-            json=data
-        )
-        
-        return self._handle_response(response)
+    # def get_friends(self):
+    #     """
+    #     Request friend list
+    #     Response will be handled by on_friends_update callback
+    #     """
+    #     self.sio.emit('get_friends', {})
     
-    def accept_friend_request(self, request_id: int) -> Dict:
+    def send_friend_request(self, user_email: str, message: str = "", callback: Callable = None):
         """
-        POST /api/accept-friend
+        Send friend request to another user
+        """
+        def on_response(data):
+            if data.get('success'):
+                print(f"Friend request sent to {user_email}")
+            else:
+                print(f"Failed to send request: {data.get('error')}")
+            if callback:
+                callback(data)
+        
+        self.sio.on('friend_request_response', on_response)
+        self.sio.emit('send_friend_request', {
+            'user_email': user_email,
+            'message': message
+        })
+    
+    def accept_friend_request(self, request_id: int, callback: Callable = None):
+        """
         Accept a pending friend request
         """
-        if not self.is_authenticated:
-            raise Exception("Must be logged in")
+        def on_response(data):
+            if data.get('success'):
+                print(f"Friend request accepted")
+            else:
+                print(f"Failed to accept request: {data.get('error')}")
+            if callback:
+                callback(data)
         
-        data = {
-            'request_id': request_id
-        }
-        
-        response = self.session.post(
-            f"{self.base_url}/api/accept-friend",
-            json=data
-        )
-        
-        return self._handle_response(response)
-
+        self.sio.on('accept_friend_response', on_response)
+        self.sio.emit('accept_friend_request', {'request_id': request_id})
     
+    # ============ Messaging Methods ============
     
-        
-    # ============ Messaging ============
-    
-    def send_message(self, content: str, sender_email: str, recipient_email: str, time: str) -> Dict:
+    def send_message(self, to_email: str, content: str, callback: Callable = None):
         """
-        POST /api/send-message
         Send a message to a friend
         """
-        if not self.is_authenticated:
-            raise Exception("Must be logged in")
+        def on_response(data):
+            if data.get('success'):
+                status = data.get('status', 'unknown')
+                if status == 'delivered':
+                    print(f"Message delivered to {to_email}")
+                elif status == 'stored':
+                    print(f"Message stored for {to_email} (offline)")
+            else:
+                print(f"Failed to send message: {data.get('error')}")
+            if callback:
+                callback(data)
         
-        if not content.strip():
-            raise Exception("Message content cannot be empty")
-        
-        data = {
+        self.sio.on('message_response', on_response)
+        self.sio.emit('send_message', {
+            'to': to_email,
             'content': content,
-            'from': sender_email,
-            'to': recipient_email,
-            'timestamp': time
-        }
-        
-        response = self.session.post(
-            f"{self.base_url}/api/send-message",
-            json=data
-        )
-        
-        return self._handle_response(response)
+            'timestamp': time.time()
+        })
     
-    def get_offline_messages(self, limit: int = 50) -> List[Dict]:
+    # def get_online_status(self, emails: List[str]):
+    #     """
+    #     Get online status for specific users
+    #     """
+    #     self.sio.emit('get_online_status', {'emails': emails})
+    
+    # ============ Utility Methods ============
+    
+    def is_user_online(self, email: str) -> bool:
         """
-        GET /api/offline-messages
-        Get messages received while offline
+        Check if a user is currently online (requires recent status check)
         """
-        if not self.is_authenticated:
-            raise Exception("Must be logged in")
-        
-        params = {'limit': limit}
-        
-        response = self.session.get(
-            f"{self.base_url}/api/offline-messages",
-            params=params
-        )
-        
-        return self._handle_response(response)
+        pass
+
+# ============ Usage Example ============
+
+# if __name__ == '__main__':
+#     import time
+    
+#     # Define callback functions
+#     def on_message(msg):
+#         print(f"\nIncoming Message from [{msg['from']}]: {msg['content']}")
+    
+#     def on_friend_request(data):
+#         print(f"\nFriend request from: {data['from']}")
+#         print(f"   Request ID: {data['request_id']}")
+#         print(f"   Message: {data.get('message', 'No message')}")
+    
+#     def on_friend_accepted(data):
+#         print(f"\n{data['friend_email']} accepted your friend request!")
+    
+#     def on_connected():
+#         print("\nSuccessfully connected to chat server!")
+    
+#     def on_disconnected():
+#         print("\nDisconnected from chat server")
+    
+#     # Create client instance
+#     client = Client_API("https://localhost:3000")
+    
+#     # Set callbacks
+#     client.on_message = on_message
+#     client.on_friend_request = on_friend_request
+#     client.on_friend_accepted = on_friend_accepted
+#     client.on_connected = on_connected
+#     client.on_disconnected = on_disconnected
+    
+#     # Connect to server
+#     print("Connecting to server...")
+#     client.connect()
+    
+#     # Wait for connection to establish
+#     time.sleep(1)
+    
+#     # Login (replace with actual credentials)
+#     print("\nAttempting login...")
+#     client.login("alice@example.com", "password123", 123456)
+    
+#     # Wait for login to complete
+#     time.sleep(1)
+    
+#     # Get friends list
+#     print("\nFetching friends list...")
+#     client.get_friends()
+    
+#     time.sleep(1)
+    
+#     # Send a message
+#     print("\nSending message...")
+#     client.send_message("bob@example.com", "Hello Bob! How are you?")
+    
+#     # Keep the application running
+#     try:
+#         print("\nChat client running. Press Ctrl+C to exit.")
+#         while True:
+#             time.sleep(1)
+#     except KeyboardInterrupt:
+#         print("\n\nShutting down...")
+#         client.logout()
+#         client.disconnect()
+#         print("Goodbye!")
