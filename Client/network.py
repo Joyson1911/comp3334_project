@@ -66,7 +66,7 @@ class Client_API:
         @self.sio.on('new_message')
         def on_new_message(data):
             """Handle incoming real-time message"""
-            print(f"Message from {data['from']}: {data['content']}")
+            print(f"Message from {data['from_email']}: {data['content']}")
             if self.on_message:
                 self.on_message(data)
         
@@ -84,7 +84,7 @@ class Client_API:
         @self.sio.on('friend_request_received')
         def on_friend_request(data):
             """Handle incoming friend request"""
-            print(f"Friend Request: {data['from']} wants to add you as a friend")
+            print(f"Friend Request: {data['from_email']} wants to add you as a friend")
             if self.on_friend_request:
                 self.on_friend_request(data)
         
@@ -94,22 +94,6 @@ class Client_API:
             print(f"Success: {data['friend_email']} accepted your friend request")
             if self.on_friend_accepted:
                 self.on_friend_accepted(data)
-        
-        @self.sio.on('friends_list')
-        def on_friends_list(friends):
-            """Handle friend list response"""
-            print(f"Friends list: {len(friends)} people")
-            for friend in friends:
-                status = "online" if friend.get('online') else "offline"
-                print(f"   - {friend['email']} ({status})")
-            if self.on_friends_update:
-                self.on_friends_update(friends)
-        
-        @self.sio.on('online_status')
-        def on_online_status(status):
-            """Handle online status response"""
-            for email, online in status.items():
-                print(f"{email}: {'online' if online else 'offline'}")
         
         @self.sio.on('error')
         def on_error(data):
@@ -247,7 +231,7 @@ class Client_API:
         
         self.sio.on('message_response', on_response)
         self.sio.emit('send_message', {
-            'to': to_email,
+            'to_email': to_email,
             'content': content,
             'timestamp': time.time()
         })

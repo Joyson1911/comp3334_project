@@ -36,7 +36,7 @@ def get_offline_messages(user_email):
     undelivered = []
     
     for m in messages:
-        if m.get('to') == user_email and not m.get('delivered', False):
+        if m.get('to_email') == user_email and not m.get('delivered', False):
             undelivered.append(m)
             m['delivered'] = True
             
@@ -219,7 +219,7 @@ def handle_send_friend_request(data):
     if friend_email in user_sid_map:
         socketio.emit('friend_request_received', {
             'request_id': new_request['id'],
-            'from': user_email,
+            'from_email': user_email,
             'message': data.get('message', '')
         }, room=user_sid_map[friend_email])
     
@@ -282,7 +282,7 @@ def handle_accept_friend_request(data):
 def handle_send_message(data):
     """
     Send a message to a friend
-    Expected data: {to, content, timestamp (optional)}
+    Expected data: {to_email, content, timestamp (optional)}
     """
     sid = request.sid
     if sid not in online_users:
@@ -290,7 +290,7 @@ def handle_send_message(data):
         return
     
     from_email = online_users[sid]
-    to_email = data.get('to')
+    to_email = data.get('to_email')
     content = data.get('content')
     timestamp = data.get('timestamp', datetime.now().isoformat())
     
@@ -317,8 +317,8 @@ def handle_send_message(data):
     # Create message object
     message = {
         'id': len(messages) + 1,
-        'from': from_email,
-        'to': to_email,
+        'from_email': from_email,
+        'to_email': to_email,
         'content': content,
         'timestamp': timestamp,
         'delivered': False
@@ -330,7 +330,7 @@ def handle_send_message(data):
         # Online - deliver immediately
         socketio.emit('new_message', {
             'id': message['id'],
-            'from': from_email,
+            'from_email': from_email,
             'content': content,
             'timestamp': timestamp
         }, room=user_sid_map[to_email])
