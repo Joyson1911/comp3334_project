@@ -169,32 +169,6 @@ def handle_logout(data):
 
 # ============ Friend Management Events ============
 
-# @socketio.on('get_friends')
-# def handle_get_friends(data):
-#     """
-#     Get user's friend list with online status
-#     """
-#     sid = request.sid
-#     if sid not in online_users:
-#         emit('error', {'error': 'Not authenticated'})
-#         return
-    
-#     user_email = online_users[sid]
-#     user_friends = [f for f in friends if f['user_email'] == user_email]
-    
-#     friend_list = []
-#     for friendship in user_friends:
-#         friend_email = friendship['friend_email']
-#         # Check if friend is online
-#         is_online = friend_email in user_sid_map
-        
-#         friend_list.append({
-#             'email': friend_email,
-#             'online': is_online
-#         })
-    
-#     emit('friends_list', friend_list)
-
 @socketio.on('send_friend_request')
 def handle_send_friend_request(data):
     """
@@ -369,25 +343,6 @@ def handle_send_message(data):
         'message_id': message['id'],
         'status': delivered_status
     })
-
-# @socketio.on('get_online_status')
-# def handle_get_online_status(data):
-#     """
-#     Get online status for specific users
-#     Expected data: {emails: [list of email addresses]}
-#     """
-#     sid = request.sid
-#     if sid not in online_users:
-#         emit('error', {'error': 'Not authenticated'})
-#         return
-    
-#     emails = data.get('emails', [])
-#     status = {}
-    
-#     for email in emails:
-#         status[email] = email in user_sid_map
-    
-#     emit('online_status', status)
 
 # ============ Server Startup ============
 

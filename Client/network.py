@@ -194,13 +194,6 @@ class Client_API:
     
     # ============ Friend Management Methods ============
     
-    # def get_friends(self):
-    #     """
-    #     Request friend list
-    #     Response will be handled by on_friends_update callback
-    #     """
-    #     self.sio.emit('get_friends', {})
-    
     def send_friend_request(self, user_email: str, message: str = "", callback: Callable = None):
         """
         Send friend request to another user
@@ -259,12 +252,6 @@ class Client_API:
             'timestamp': time.time()
         })
     
-    # def get_online_status(self, emails: List[str]):
-    #     """
-    #     Get online status for specific users
-    #     """
-    #     self.sio.emit('get_online_status', {'emails': emails})
-    
     # ============ Utility Methods ============
     
     def is_user_online(self, email: str) -> bool:
@@ -272,71 +259,3 @@ class Client_API:
         Check if a user is currently online (requires recent status check)
         """
         pass
-
-# ============ Usage Example ============
-
-# if __name__ == '__main__':
-#     import time
-    
-#     # Define callback functions
-#     def on_message(msg):
-#         print(f"\nIncoming Message from [{msg['from']}]: {msg['content']}")
-    
-#     def on_friend_request(data):
-#         print(f"\nFriend request from: {data['from']}")
-#         print(f"   Request ID: {data['request_id']}")
-#         print(f"   Message: {data.get('message', 'No message')}")
-    
-#     def on_friend_accepted(data):
-#         print(f"\n{data['friend_email']} accepted your friend request!")
-    
-#     def on_connected():
-#         print("\nSuccessfully connected to chat server!")
-    
-#     def on_disconnected():
-#         print("\nDisconnected from chat server")
-    
-#     # Create client instance
-#     client = Client_API("https://localhost:3000")
-    
-#     # Set callbacks
-#     client.on_message = on_message
-#     client.on_friend_request = on_friend_request
-#     client.on_friend_accepted = on_friend_accepted
-#     client.on_connected = on_connected
-#     client.on_disconnected = on_disconnected
-    
-#     # Connect to server
-#     print("Connecting to server...")
-#     client.connect()
-    
-#     # Wait for connection to establish
-#     time.sleep(1)
-    
-#     # Login (replace with actual credentials)
-#     print("\nAttempting login...")
-#     client.login("alice@example.com", "password123", 123456)
-    
-#     # Wait for login to complete
-#     time.sleep(1)
-    
-#     # Get friends list
-#     print("\nFetching friends list...")
-#     client.get_friends()
-    
-#     time.sleep(1)
-    
-#     # Send a message
-#     print("\nSending message...")
-#     client.send_message("bob@example.com", "Hello Bob! How are you?")
-    
-#     # Keep the application running
-#     try:
-#         print("\nChat client running. Press Ctrl+C to exit.")
-#         while True:
-#             time.sleep(1)
-#     except KeyboardInterrupt:
-#         print("\n\nShutting down...")
-#         client.logout()
-#         client.disconnect()
-#         print("Goodbye!")
