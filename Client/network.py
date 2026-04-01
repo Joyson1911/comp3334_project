@@ -251,11 +251,3 @@ class Client_API:
             'content': content,
             'timestamp': time.time()
         })
-    
-    # ============ Utility Methods ============
-    
-    def is_user_online(self, email: str) -> bool:
-        """
-        Check if a user is currently online (requires recent status check)
-        """
-        pass

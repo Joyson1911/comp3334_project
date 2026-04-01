@@ -32,10 +32,14 @@ def generate_token():
 
 def get_offline_messages(user_email):
     """Retrieve and mark offline messages for a user"""
-    undelivered = [m for m in messages 
-                   if m['to_email'] == user_email and not m.get('delivered', False)]
-    for msg in undelivered:
-        msg['delivered'] = True
+    
+    undelivered = []
+    
+    for m in messages:
+        if m.get('to') == user_email and not m.get('delivered', False):
+            undelivered.append(m)
+            m['delivered'] = True
+            
     return undelivered
 
 # ============ WebSocket Event Handlers ============
@@ -351,12 +355,5 @@ if __name__ == '__main__':
     print("Chat Server Starting")
     print("=" * 50)
     print(f"WebSocket endpoint: ws://localhost:3000")
-    print(f"Features:")
-    print(f"   - User registration/login")
-    print(f"   - Friend management")
-    print(f"   - Real-time messaging")
-    print(f"   - Offline messages")
-    print(f"   - Online status tracking")
-    print("=" * 50)
     
     socketio.run(app, host='0.0.0.0', port=3000, debug=True)
