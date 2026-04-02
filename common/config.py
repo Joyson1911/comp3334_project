@@ -16,6 +16,6 @@ class Config():
     
     @staticmethod
     def get() -> configparser.ConfigParser:
-        if len(Config._config.keys()) <= 0:
+        if len(Config._config.keys()) <= 1:
             Config.add_conf()
         return Config._config

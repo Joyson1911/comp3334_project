@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 
 class Message:
     SENT = False
@@ -6,7 +6,7 @@ class Message:
     
     #content: message body, sender, recipent: email, lifetime: seconds
     # TODO complete the class and docs 
-    def __init__(self, content: str, sender: str, recipent: str, lifetime: int = -1, status: bool = None):
+    def __init__(self, id: int, content: str, sender: str, recipent: str, delivered: bool, delete_time: datetime | None = None):
         """Construct a message object by the given args
 
         Parameters
@@ -23,14 +23,17 @@ class Message:
         lifetime : int, optional
             The message life time in seconds before it is detroyed, by default -1 for lasting forever.
         """
+        self.id = id
         self.message = content
         self.sender = sender
         self.recipent = recipent
-        # time of creation
-        self.deleteTime = -1 if lifetime==-1 else datetime.now() + timedelta(seconds=lifetime)
-        self.status = status
+        self.delivered = delivered
+        self.delete_time = delete_time #time of expiry
     
     def isExpired(self):
-        if self.deleteTime == -1:
+        if self.delete_time == None:
             return False  
-        return datetime.now() >= self.deleteTime
+        return datetime.now() >= self.delete_time
+    
+
+        
