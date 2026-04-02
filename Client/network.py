@@ -142,12 +142,44 @@ class Client_API:
     
     # ============ Authentication Methods ============
     
-    def register(self, email: str, password: str, otp: int, callback: Callable = None):
+    # Dont remove !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    # def otp_request(self, email: str, action: str, callback: Callable = None):
+    #     """
+    #     Request OTP for registration or login
+    #     """
+    #     def on_response(data):
+    #         if data.get('success'):
+    #             print(f"OTP sent to {email}")
+    #         else:
+    #             print(f"Failed to send OTP: {data.get('error')}")
+    #         if callback:
+    #             callback(data)
+                
+    #     self.sio.emit('otp_request', {
+    #         'email': email,
+    #         'action': action
+    #         }, callback=on_response)
+    
+    # For testing purposes, return OTP directly !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    def otp_request(self, email: str, action: str):
+        try:
+            # call 会直接等待服务器处理完并返回结果，不需要自己写 callback
+            data = self.sio.call('otp_request', {
+                'email': email,
+                'action': action
+            }, timeout=10)
+
+            if data and data.get('success'):
+                return data.get('otp')
+        except Exception as e:
+            print(f"请求出错: {e}")
+        return None
+    
+    def register(self, email: str, password: str | None, otp: int | None, callback: Callable = None):
         """
         Register a new user account
         """
         def on_response(data):
-            # data = args[0] if args else {}
             if data.get('success'):
                 print(f"Registration successful: {email}")
             else:
@@ -155,7 +187,6 @@ class Client_API:
             if callback:
                 callback(data)
         
-        # self.sio.on('register_response', on_response)
         self.sio.emit('register', {
             'email': email,
             'password': password,
@@ -236,16 +267,15 @@ class Client_API:
         def on_response(data):
             if data.get('success'):
                 status = data.get('status', 'unknown')
-                if status == 'delivered':
+                if status:
                     print(f"Message delivered to {to_email}")
-                elif status == 'stored':
+                else:
                     print(f"Message stored for {to_email} (offline)")
             else:
                 print(f"Failed to send message: {data.get('error')}")
             if callback:
                 callback(data)
-        
-        # self.sio.on('message_response', on_response)
+
         self.sio.emit('send_message', {
             'to_email': to_email,
             'content': content,

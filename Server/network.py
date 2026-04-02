@@ -5,6 +5,8 @@ from flask import Flask, request
 from flask_socketio import SocketIO, emit, disconnect, ConnectionRefusedError
 import secrets
 from datetime import datetime
+from datetime import timedelta
+from Email import emailVerification
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -19,6 +21,8 @@ messages = []        # {id, from_email, to_email, content, timestamp, delivered}
 online_users = {}    # sid -> user_email
 user_sid_map = {}    # user_email -> sid
 sessions = {}        # token -> user
+token_map = {}      # token -> expiry_time
+pending_otps = {}
 
 # ============ Helper Functions ============
 
@@ -32,18 +36,6 @@ def find_user_by_email(email):
 def generate_token():
     """Generate a secure random token for authentication"""
     return secrets.token_urlsafe(32)
-
-def get_offline_messages(user_email):
-    """Retrieve and mark offline messages for a user"""
-    
-    undelivered = []
-    
-    for m in messages:
-        if m.get('to_email') == user_email and not m.get('delivered', False):
-            undelivered.append(m)
-            m['delivered'] = True
-            
-    return undelivered
 
 # ============ WebSocket Event Handlers ============
 
@@ -70,6 +62,32 @@ def handle_disconnect():
             del user_sid_map[email]
 
 # ============ Authentication Events ============
+
+@socketio.on('otp_request')
+def handle_otp_request(data):
+    """
+    Request a new OTP for email verification
+    Expected data: {email}
+    """
+    email = data.get('email')
+    action = data.get('action')
+    
+    if not email:
+        return {'success': False, 'error': 'Email is required'}
+    
+    if action == 'register':
+        # Check if email already exists in registration
+        if find_user_by_email(email):
+            return {'success': False, 'error': 'User (Email) already exists'}
+    
+    # only for testing!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    #should use email.py to send email with OTP!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    # Generate and store OTP
+    generated_otp = secrets.randbelow(900000) + 100000  # 生成 6 位数 OTP
+    pending_otps[email] = generated_otp
+    print(f"Generated OTP for {email}: {generated_otp}")
+    
+    return {'success': True, 'message': 'OTP generated', 'otp': generated_otp}
 
 @socketio.on('register')
 def handle_register(data):
@@ -119,6 +137,7 @@ def handle_login(data):
     
     # Generate access token
     token = generate_token()
+    expiry_time = datetime.now() + timedelta(hours=24)
     sessions[token] = user
     
     # Update current connection mapping
@@ -126,12 +145,16 @@ def handle_login(data):
     online_users[sid] = email
     user_sid_map[email] = sid
     
-    # Send offline messages if any
-    offline_msgs = get_offline_messages(user['email'])
+    # offline_msgs = get_offline_messages(user['email'])
+    offline_msgs = [
+        msg for msg in messages 
+        if msg['to_email'] == user['email'] and not msg.get('delivered', False)
+    ]
     if offline_msgs:
         print(f"Sending {len(offline_msgs)} offline messages to {user['email']}")
         emit('offline_messages', offline_msgs)
     
+    # Send pending friend requests if any
     offline_reqs = [
         req for req in friend_requests 
         if req['to_email'] == user['email'] and req['status'] == 'pending'
@@ -140,7 +163,7 @@ def handle_login(data):
         print(f"Sending {len(offline_reqs)} offline friend requests to {user['email']}")
         emit('offline_friend_requests', offline_reqs)
         
-    return{'success': True, 'access_token': token,'user': {'email': email}}
+    return{'success': True, 'access_token': token,'user': {'email': email}, 'expiry_time': expiry_time.isoformat()}
 
 
 @socketio.on('logout')
@@ -327,14 +350,14 @@ def handle_send_message(data):
             'timestamp': timestamp
         }, room=user_sid_map[to_email])
         message['delivered'] = True
-        delivered_status = 'delivered'
+        delivered = True
         print(f"Delivered message to {to_email} (online)")
     else:
         # Offline - store for later
-        delivered_status = 'stored'
+        delivered = False
         print(f"Stored message for {to_email} (offline)")
     
-    return {'success': True, 'message_id': message['id'], 'status': delivered_status}
+    return {'success': True, 'message_id': message['id'], 'status': delivered}
 
 # ============ Server Startup ============
 
