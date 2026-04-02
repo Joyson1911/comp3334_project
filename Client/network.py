@@ -147,6 +147,7 @@ class Client_API:
         Register a new user account
         """
         def on_response(data):
+            # data = args[0] if args else {}
             if data.get('success'):
                 print(f"Registration successful: {email}")
             else:
@@ -154,12 +155,12 @@ class Client_API:
             if callback:
                 callback(data)
         
-        self.sio.on('register_response', on_response)
+        # self.sio.on('register_response', on_response)
         self.sio.emit('register', {
             'email': email,
             'password': password,
-            'otp': otp
-        })
+            'otp': otp,
+        }, callback=on_response)
     
     def login(self, email: str, password: str, otp: int, callback: Callable = None):
         """
@@ -176,12 +177,11 @@ class Client_API:
             if callback:
                 callback(data)
         
-        self.sio.on('login_response', on_response)
         self.sio.emit('login', {
             'email': email,
             'password': password,
             'otp': otp
-        })
+        }, callback=on_response)
     
     def logout(self):
         """Logout from current session"""
@@ -205,12 +205,11 @@ class Client_API:
             if callback:
                 callback(data)
         
-        self.sio.on('friend_request_response', on_response)
         self.sio.emit('send_friend_request', {
             'user_email': user_email,
             'message': message
-        })
-    
+        }, callback=on_response)
+        
     def respond_to_friend_request(self, request_id, action, callback: Callable =None):
         """
         Handle a pending friend request (accept or reject)
@@ -246,9 +245,9 @@ class Client_API:
             if callback:
                 callback(data)
         
-        self.sio.on('message_response', on_response)
+        # self.sio.on('message_response', on_response)
         self.sio.emit('send_message', {
             'to_email': to_email,
             'content': content,
             'timestamp': time.time()
-        })
+        }, callback=on_response)

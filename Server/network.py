@@ -1,3 +1,6 @@
+import eventlet
+eventlet.monkey_patch()
+
 from flask import Flask, request
 from flask_socketio import SocketIO, emit, disconnect, ConnectionRefusedError
 import secrets
@@ -80,19 +83,11 @@ def handle_register(data):
     
     # Validate input
     if not email or not password or not otp:
-        emit('register_response', {
-            'success': False,
-            'error': 'Email, password, and OTP are required'
-        })
-        return
+        return {'success': False, 'error': 'Email, password, and OTP are required'}
     
     # Check if email already exists
     if find_user_by_email(email):
-        emit('register_response', {
-            'success': False,
-            'error': 'Email already exists'
-        })
-        return
+        return {'success': False, 'error': 'User (Email) already exists'}
     
     # Create new user
     new_user = {
@@ -104,11 +99,7 @@ def handle_register(data):
     }
     users.append(new_user)
     
-    emit('register_response', {
-        'success': True,
-        'message': 'User registered successfully',
-        'user': {'email': email}
-    })
+    return {'success': True, 'message': 'Registered successfully', 'user': {'email': email}}
 
 @socketio.on('login')
 def handle_login(data):
@@ -124,11 +115,7 @@ def handle_login(data):
     
     # Validate credentials
     if not user or user['password'] != password or not otp:
-        emit('login_response', {
-            'success': False,
-            'error': 'Invalid credentials'
-        })
-        return
+        return {'success': False, 'error': 'Invalid credentials'}
     
     # Generate access token
     token = generate_token()
@@ -138,12 +125,6 @@ def handle_login(data):
     sid = request.sid
     online_users[sid] = email
     user_sid_map[email] = sid
-    
-    emit('login_response', {
-        'success': True,
-        'access_token': token,
-        'user': {'email': email}
-    })
     
     # Send offline messages if any
     offline_msgs = get_offline_messages(user['email'])
@@ -158,6 +139,8 @@ def handle_login(data):
     if offline_reqs:
         print(f"Sending {len(offline_reqs)} offline friend requests to {user['email']}")
         emit('offline_friend_requests', offline_reqs)
+        
+    return{'success': True, 'access_token': token,'user': {'email': email}}
 
 
 @socketio.on('logout')
@@ -190,29 +173,24 @@ def handle_send_friend_request(data):
     """
     sid = request.sid
     if sid not in online_users:
-        emit('error', {'error': 'Not authenticated'})
-        return
+        return {'success': False, 'error': 'Not authenticated'}
     
     user_email = online_users[sid]
     friend_email = data.get('user_email')
     
     if not friend_email:
-        emit('friend_request_response', {'success': False, 'error': 'User email required'})
-        return
+        return {'success': False, 'error': 'User email required'}
     
     friend = find_user_by_email(friend_email)
     if not friend:
-        emit('friend_request_response', {'success': False, 'error': 'User not found'})
-        return
+        return {'success': False, 'error': 'User not found'}
     
     if friend_email == user_email:
-        emit('friend_request_response', {'success': False, 'error': 'Cannot add yourself'})
-        return
+        return {'success': False, 'error': 'Cannot add yourself'}
     
     # Check if already friends
     if any(f for f in friends if f['user_email'] == user_email and f['friend_email'] == friend_email):
-        emit('friend_request_response', {'success': False, 'error': 'Already friends'})
-        return
+        return {'success': False, 'error': 'Already friends'}
     
     # Create friend request
     new_request = {
@@ -232,11 +210,7 @@ def handle_send_friend_request(data):
             'message': data.get('message', '')
         }, room=user_sid_map[friend_email])
     
-    emit('friend_request_response', {
-        'success': True,
-        'message': 'Request sent',
-        'request_id': new_request['id']
-    })
+    return {'success': True, 'message': 'Request sent', 'request_id': new_request['id']}
 
 @socketio.on('respond_to_friend_request')
 def handle_respond_to_friend_request(data):
@@ -308,8 +282,7 @@ def handle_send_message(data):
     """
     sid = request.sid
     if sid not in online_users:
-        emit('error', {'error': 'Not authenticated'})
-        return
+        return {'success': False, 'error': 'Not authenticated'}
     
     from_email = online_users[sid]
     to_email = data.get('to_email')
@@ -318,13 +291,11 @@ def handle_send_message(data):
     
     # Validate input
     if not to_email or not content:
-        emit('message_response', {'success': False, 'error': 'Recipient and content required'})
-        return
+        return {'success': False, 'error': 'Recipient and content required'}
     
     recipient = find_user_by_email(to_email)
     if not recipient:
-        emit('message_response', {'success': False, 'error': 'Recipient not found'})
-        return
+        return {'success': False, 'error': 'Recipient not found'}
     
     # Verify they are friends
     are_friends = any(
@@ -333,8 +304,7 @@ def handle_send_message(data):
     )
     
     if not are_friends:
-        emit('message_response', {'success': False, 'error': 'You can only message your friends'})
-        return
+        return {'success': False, 'error': 'You can only message your friends'}
     
     # Create message object
     message = {
@@ -364,11 +334,7 @@ def handle_send_message(data):
         delivered_status = 'stored'
         print(f"Stored message for {to_email} (offline)")
     
-    emit('message_response', {
-        'success': True,
-        'message_id': message['id'],
-        'status': delivered_status
-    })
+    return {'success': True, 'message_id': message['id'], 'status': delivered_status}
 
 # ============ Server Startup ============
 
