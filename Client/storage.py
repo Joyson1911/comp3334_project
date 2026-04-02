@@ -10,7 +10,62 @@ from pathlib import Path
 import uuid
 
 from crypto import RSA, RSAPublicKey
-
+            
+class Client:
+    """Store format:  
+    \\{  
+        "private_key": "",  
+        "public_key": "",  
+        "session_token": "",  
+        "login_email": ""  
+    }
+    """
+    def __init__(self, rsa_instance: RSA, token: str | None, email: str | None):
+        self.rsa = rsa_instance
+        self.token = token
+        self.last_email = email
+        
+    @classmethod
+    def from_file(cls, path: Path) -> Client:
+        data = json.loads(path.read_text())
+        
+        token = data['session_token']
+        email = data['login_email']
+        # assume password is mac address
+        password = str(uuid.getnode())
+        
+        rsa = RSA.from_str(data['public_key'], data['private_key'], password)
+        
+        return cls(rsa, token, email)
+    
+    def save(self, path: Path):
+        path.write_text(
+            json.dumps({
+                "private_key": self.rsa.priv_key_enc_str(str(uuid.getnode())),
+                "public_key": self.rsa.pub_key_str(),
+                "session_token": self.token,  
+                "login_email": self.last_email 
+            })
+        )
+             
+class MsgStore:
+    def __init__(self, id: int, content: str, other_sent: bool, delivered: bool, delete_time: datetime | None): 
+        self.id = id
+        self.content = content
+        self.other_sent = int(other_sent) 
+        self.delivered = int(delivered)
+        self.delete_time = delete_time
+        
+    def __str__(self) -> str:
+        return f'{self.id} {self.other_sent} '
+    
+    @classmethod
+    def from_Message(cls, msg: Message, self_email: str) -> MsgStore:
+        return cls(msg.id, msg.message, msg.sender != self_email, msg.delivered, msg.delete_time)
+    
+    def to_Message(self, self_email: str, other_email: str) -> Message:
+        return Message(self.id, self.content, self_email, other_email, bool(self.delivered), self.delete_time)
+        
 class SecureStorage:
     CURDIR = Path(__file__).absolute().parent.name
     STORE_DIR = Path(CURDIR).joinpath('save')
@@ -165,62 +220,7 @@ class SecureStorage:
         else:
             filepath.touch(exist_ok=True)
             
-ss = SecureStorage
-            
-class Client:
-    """Store format:  
-    \\{  
-        "private_key": "",  
-        "public_key": "",  
-        "session_token": "",  
-        "login_email": ""  
-    }
-    """
-    def __init__(self, rsa_instance: RSA, token: str | None, email: str | None):
-        self.rsa = rsa_instance
-        self.token = token
-        self.last_email = email
-        
-    @classmethod
-    def from_file(cls, path: Path) -> Client:
-        data = json.loads(path.read_text())
-        
-        token = data['session_token']
-        email = data['login_email']
-        # assume password is mac address
-        password = str(uuid.getnode())
-        
-        rsa = RSA.from_str(data['public_key'], data['private_key'], password)
-        
-        return cls(rsa, token, email)
-    
-    def save(self, path: Path):
-        path.write_text(
-            json.dumps({
-                "private_key": self.rsa.priv_key_enc_str(str(uuid.getnode())),
-                "public_key": self.rsa.pub_key_str(),
-                "session_token": self.token,  
-                "login_email": self.last_email 
-            })
-        )
-             
-class MsgStore:
-    def __init__(self, id: int, content: str, other_sent: bool, delivered: bool, delete_time: datetime | None): 
-        self.id = id
-        self.content = content
-        self.other_sent = int(other_sent) 
-        self.delivered = int(delivered)
-        self.delete_time = delete_time
-        
-    def __str__(self) -> str:
-        return f'{self.id} {self.other_sent} '
-    
-    @classmethod
-    def from_Message(cls, msg: Message, self_email: str) -> MsgStore:
-        return cls(msg.id, msg.message, msg.sender != self_email, msg.delivered, msg.delete_time)
-    
-    def to_Message(self, self_email: str, other_email: str) -> Message:
-        return Message(self.id, self.content, self_email, other_email, bool(self.delivered), self.delete_time)
+ss = SecureStorage        
         
 # def _derive_file_key(self, password: str) -> bytes:
     #     """Derive a 256-bit file encryption key using the Scrypt algorithm."""
