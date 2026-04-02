@@ -5,7 +5,7 @@ import time
 import sys
 import curses
 from UserInterface import UI
-from storage import SecureStorage
+#from storage import SecureStorage
 from session import Account, Recipient
 from datetime import datetime, timedelta
 
@@ -19,14 +19,16 @@ def main(stdscr):
         ui.clearMsgWindow()
         ui.clearFeedback()
 
-        storage = SecureStorage(userEmail)
+        #storage = SecureStorage(userEmail)
         friends = []
         unread = []
         blacklist = []
         publicKey = ""
         privateKey = ""
+        sent = []
+        received = []
 
-        account = Account(userEmail, publicKey, privateKey, friends, unread, blacklist)
+        account = Account(userEmail, publicKey, privateKey, friends, unread, blacklist, sent, received)
         #Load contact page
         pageInfo = {"nextPage": "contact"}
         while True:
@@ -71,7 +73,7 @@ def loginPage(ui: UI):
 
         elif userInput == 2:
             if datetime.now() < registerLockExpiry:
-                ui.showFeedback(f"Registration locked. Please try again in {(registerLockExpiry - datetime.now()).total_seconds} seconds.") 
+                ui.showFeedback(f"Registration locked. Please try again in {(registerLockExpiry - datetime.now()).total_seconds()} seconds.") 
                 continue
             email = ui.getString("Email: ")
             if False:# if email is registered
@@ -106,7 +108,7 @@ def contactPage(ui: UI, account: Account):
     while True:
         userInput = ui.getInteger("Enter: ", 5)
         if userInput == 1:
-            if len(account.friendlist)<1:
+            if len(account.friendlist["friends"])<1:
                 ui.showFeedback("You have no friends at the moment. Add new friends to start a conversation.")
                 continue
             userInput = ui.getInteger("Enter chatroom ID: ", len(account.friendlist["friends"])+1)
@@ -122,7 +124,7 @@ def contactPage(ui: UI, account: Account):
 def getMessages(recipient: str, pageNum: int):
     ...    
 
-def chatroomPage(ui: UI, account: Account, recipientEmail: str, storage: SecureStorage):
+def chatroomPage(ui: UI, account: Account, recipientEmail: str, storage):
     recipientPublicKey = ""
     macAddress = ""
     recipient = Recipient(recipientEmail, recipientPublicKey)
@@ -177,6 +179,9 @@ def relationshipPage(ui: UI, account: Account):
             #Send request
             ui.showFeedback(f"Friend request sent to {userInput}")
         elif userInput == 2:
+            if len(account.friendlist["friends"])<1:
+                ui.showFeedback("You have no friends at the moment.")
+                continue
             userInput = ui.getString("Enter user email: ")
             if userInput not in account.friendlist["friends"]: # user does not exist in friend list
                 ui.showFeedback("The user is not in your friend list.")
@@ -205,14 +210,23 @@ def requestPage(ui: UI, account: Account):
     while True:
         userInput = ui.getInteger("Enter: ", 5)
         if userInput == 1:
+            if len(account.request["received"])<1:
+                ui.showFeedback("You have no pending friend requests at the moment.")
+                continue
             userInput = ui.getInteger("Enter request ID: ", len(account.request["received"])+1)
             #Send accept to server
             account.addFriend(userInput-1)
         elif userInput == 2:
+            if len(account.request["received"])<1:
+                ui.showFeedback("You have no pending friend requests at the moment.")
+                continue
             userInput = ui.getInteger("Enter request ID: ", len(account.request["received"])+1)
             #Send decline to server
             account.removeFriend(userInput-1)
         elif userInput == 3:
+            if len(account.request["sent"])<1:
+                ui.showFeedback("You have no pending friend requests at the moment.")
+                continue
             userInput = ui.getInteger("Enter request ID: ", len(account.request["sent"])+1)
             #Send cancel to server
             account.request["sent"].pop(userInput-1)
