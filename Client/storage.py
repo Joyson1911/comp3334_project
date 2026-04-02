@@ -7,8 +7,9 @@ from messaging import Message
 # from os import urandom, remove, mkdir
 from os.path import dirname
 from pathlib import Path
+import uuid
 
-from crypto import SHA256, RSA
+from crypto import RSA
 
 class SecureStorage:
     CURDIR = Path(__file__).absolute().parent.name
@@ -31,9 +32,28 @@ class SecureStorage:
         self.create_if_not_exist(self.user_msg_dir, True)
 
     def initiated(self) -> bool:
+        """Check if the device info initiated
+
+        Returns
+        -------
+        bool
+            True if initiated, else False.
+        """
         return ss.CLIENT_FILE.exists()
     
     def load_chat_msg(self, other_email: str) -> list[Message]:
+        """Loads the messages of chat between self and other.
+
+        Parameters
+        ----------
+        other_email : str
+            Email owned by the entity that is chatting with self.
+
+        Returns
+        -------
+        list[Message]
+            A list of chat room messages.
+        """
         msg_path = self.user_msg_dir.joinpath(other_email)
         
         messages = []
@@ -50,8 +70,17 @@ class SecureStorage:
             ).to_Message(self.email, other_email))
             
         return messages
-            
+    
     def save_chat_msg(self, other_email: str, messages: list[Message]):
+        """Saves the chat message into corresponding storage space.
+
+        Parameters
+        ----------
+        other_email : str
+            Email which is in conversation with self.
+        messages : list[Message]
+            A full list of the chat message.
+        """
         msg_path = self.user_msg_dir.joinpath(other_email)
         self.create_if_not_exist(msg_path, False)
         
@@ -61,16 +90,44 @@ class SecureStorage:
             for m in store_msg:
                 msg_f.write(str(m) + '\n')
     
-    def initiate(self, rsa: RSA, token: str) -> Client:
+    def remove_session(self):
+        """Removes the current session"""
+        self.client_info.token = None
+        self.client_info.last_email = None
+    
+    def update_session(self, new_token: str):
+        """Updates the session of loggin user. 
+
+        Parameters
+        ----------
+        new_token : str
+            New session token for current logged in user.
+        """
+        self.client_info.token = new_token
+        
+    def save_client_info(self):
+        """Saves the current client_info, with updated session and corresponding email."""
+        self.client_info.save(ss.CLIENT_FILE)
+        
+    def initiate(self, rsa: RSA, token: str):
+        """Initiate the client info of the device.
+
+        Parameters
+        ----------
+        rsa : RSA
+            RSA instance containing device public and private key (identity key pair).
+        token : str
+            Available session token.
+        """
         ss.create_if_not_exist(ss.CLIENT_FILE, False)
         self.client_info = Client(rsa, token, self.email)
-        return self.client_info
-        
-    def load_client(self) -> Client:
+
+    def load_client(self):
+        """Loads the client_info from storage."""
         self.client_info = Client.from_file(ss.CLIENT_FILE)
-        return self.client_info
-    
+
     def to_msg_store(self, message: Message) -> MsgStore:
+        """Convert a message to the storing format."""
         return MsgStore.from_Message(message, self.email)
         
     @staticmethod
@@ -101,7 +158,7 @@ class Client:
         "login_email": ""  
     }
     """
-    def __init__(self, rsa_instance: RSA, token: str, email: str):
+    def __init__(self, rsa_instance: RSA, token: str | None, email: str | None):
         self.rsa = rsa_instance
         self.token = token
         self.last_email = email
@@ -110,10 +167,10 @@ class Client:
     def from_file(cls, path: Path) -> Client:
         data = json.loads(path.read_text())
         
-        token = data['']
+        token = data['session_token']
         email = data['login_email']
-        # assume password is login_email
-        password = email
+        # assume password is mac address
+        password = str(uuid.getnode())
         
         rsa = RSA.from_str(data['public_key'], data['private_key'], password)
         
@@ -122,8 +179,8 @@ class Client:
     def save(self, path: Path):
         path.write_text(
             json.dumps({
-                "private_key": self.rsa.priv_key_enc_str(self.last_email),  
-                "public_key": self.rsa.pub_key_str(),  
+                "private_key": self.rsa.priv_key_enc_str(str(uuid.getnode())),
+                "public_key": self.rsa.pub_key_str(),
                 "session_token": self.token,  
                 "login_email": self.last_email 
             })
@@ -142,7 +199,7 @@ class MsgStore:
     
     @classmethod
     def from_Message(cls, msg: Message, self_email: str) -> MsgStore:
-        return cls(msg.id, msg.message, msg.sender != self_email, msg.delivered, msg.expire_time)
+        return cls(msg.id, msg.message, msg.sender != self_email, msg.delivered, msg.delete_time)
     
     def to_Message(self, self_email: str, other_email: str) -> Message:
         return Message(self.id, self.content, self_email, other_email, bool(self.delivered), self.delete_time)
