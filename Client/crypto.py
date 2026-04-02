@@ -29,7 +29,7 @@ class RSA():
         self.__private_key = priv_key
     
     @classmethod
-    def create(cls, public_expo: int = 65537, bit_length: int = 2048) -> RSA:
+    def create(cls, public_expo: int = 65537, bit_length: int = 1024) -> RSA:
         """Creates an RSA encryption instance with given parameters.
 
         Parameters
@@ -59,20 +59,30 @@ class RSA():
         InvalidKey
             If one of the key strings is not a RSA PEM key.
         """
-        public_key = ks.load_pem_public_key(pub_key_str.encode())
+        public_key = RSA.read_pub_key(pub_key_str)
         private_key = ks.load_pem_private_key(priv_key_str.encode(), password.encode())
-        if not isinstance(public_key, RSAPublicKey): 
-            raise InvalidKey(f'Public key read is not a RSA public key.')
         if not isinstance(private_key, RSAPrivateKey): 
             raise InvalidKey(f'Private key read is not a RSA private key.')
         return cls(public_key, private_key)
-        
-    def pub_key_str(self) -> str:
+    
+    @staticmethod
+    def read_pub_key(pub_key_str: str) -> RSAPublicKey:
+        public_key = ks.load_pem_public_key(pub_key_str.encode())
+        if not isinstance(public_key, RSAPublicKey): 
+            raise InvalidKey(f'Public key read is not a RSA public key.')
+        return public_key
+    
+    @staticmethod
+    def get_pub_str(pub_key: RSAPublicKey) -> str:
         """Gets the public key string in PEM format."""
-        return self.__public_key.public_bytes( 
+        return pub_key.public_bytes( 
                     encoding=ks.Encoding.PEM,
                     format=ks.PublicFormat.SubjectPublicKeyInfo
                 ).decode()
+        
+    def pub_key_str(self) -> str:
+        """Gets the public key string in PEM format."""
+        return RSA.get_pub_str(self.__public_key)
         
     def priv_key_enc_str(self, password: str) -> str:
         """Gets the private ket string in PEM encoded by given password
@@ -182,6 +192,7 @@ import hashlib
 import base64
 
 class SHA256:
+
     """Encapsulation class for SHA-256 hash operations.
 
     Provides a consistent interface for computing SHA-256 hashes of text or binary data.
@@ -271,3 +282,4 @@ class SHA256:
         """
         actual_hash = self.compute(data)
         return actual_hash == expected_hash
+    
