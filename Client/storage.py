@@ -9,7 +9,7 @@ from os.path import dirname
 from pathlib import Path
 import uuid
 
-from crypto import RSA
+from crypto import RSA, RSAPublicKey
 
 class SecureStorage:
     CURDIR = Path(__file__).absolute().parent.name
@@ -129,6 +129,24 @@ class SecureStorage:
     def to_msg_store(self, message: Message) -> MsgStore:
         """Convert a message to the storing format."""
         return MsgStore.from_Message(message, self.email)
+    
+    @staticmethod
+    def get_public_key(other_email: str) -> RSAPublicKey | None:
+        key_path = ss.STORE_DIR.joinpath(other_email, 'k.pem')
+        
+        if not key_path.exists():
+            return None
+        
+        with key_path.open('r') as f:
+            return RSA.read_pub_key(f.read())
+        
+    @staticmethod
+    def save_public_key(other_email: str, pub_key: RSAPublicKey):
+        key_path = ss.STORE_DIR.joinpath(other_email, 'k.pem')
+        ss.create_if_not_exist(key_path, False)
+        
+        with key_path.open('w') as f:
+            f.write(RSA.get_pub_str(pub_key))
         
     @staticmethod
     def create_if_not_exist(filepath: Path, isDir: bool):
@@ -143,7 +161,7 @@ class SecureStorage:
         """
         
         if isDir:
-            filepath.mkdir(exist_ok=True)
+            filepath.mkdir(exist_ok=True, parents=True)
         else:
             filepath.touch(exist_ok=True)
             
