@@ -36,6 +36,9 @@ class UI:
         self.input_win.refresh()
         self.msg_win.refresh()
 
+    def msg_win_display():
+        
+
     def displayMessage(self, messages):
         #Display messages in line 1 to 10 of the message window
         for i in range(len(messages)):

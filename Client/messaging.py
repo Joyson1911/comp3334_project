@@ -34,6 +34,3 @@ class Message:
         if self.expire_time == None:
             return False  
         return datetime.now() >= self.deleteTime
-    
-
-        

@@ -6,7 +6,8 @@ import sys
 import curses
 from UserInterface import UI
 from storage import SecureStorage
-from session import Status, Recipient
+from session import Account, Recipient
+from datetime import datetime, timedelta
 
 def main(stdscr):
 
@@ -49,32 +50,41 @@ def notificationPage(ui: UI, status: Status):
 def loginPage(ui: UI):
     ui.setTitle("Welcome to happy chat!")
     ui.drawMenu("Menu: 1. Log in | 2. Register | 3. Exit program")
+    registerLockExpiry = datetime.now()
     while True:
         userInput = ui.getInteger("Enter: ", 4)
         if userInput == 1:
-            while True:
-                email = ui.getString("Email: ")
-                verCode = ui.getString("Verification Code: ")
-                if True:# if verCode is correct break
-                    ui.showFeedback("Email verified.")
-                    break
-            while True:
-                password = ui.getPassword("Password: ")
-                if True: #if password is correct
-                    return {"email":email, "storage": SecureStorage(f"{email}.enc", password)}
-                ui.showFeedback("Password incorrect. Please try again.")
+            email = ui.getString("Email: ")
+            #ask server to send OTP
+            if False: #if email is unregistered
+                ui.showFeedback("Login failed. Please enter a valid and registered email.")
+                continue
+            ui.showFeedback("Verification code sent to your email.")
+            password = ui.getPassword("Password: ")
+            verCode = ui.getString("Verification Code: ")
+            if False: #if password or verCode is incorrect
+                ui.showFeedback("Login failed. Verification code incorrect.")
+                continue
+            #Read local storage and server message
+            storage = SecureStorage(email)
+            session = Session(user=email, )
+            return {"email":email, "session":session}
 
         elif userInput == 2:
-            while True:
-                email = ui.getString("Email: ")
-                #Ask server to send OTP
-                verCode = ui.getString("Verfication Code: ")
-                if True:#if verCode is correct
-                    ui.showFeedback("Email successfully verified.")
-                    break
-                ui.showFeedback("Verification Code incorrect. Please try again.\n")
-            password1 = "1"
-            password2 = "2"
+            if datetime.now() < registerLockExpiry:
+                ui.showFeedback(f"Registration locked. Please try again in {(registerLockExpiry - datetime.now()).total_seconds} seconds.") 
+                continue
+            email = ui.getString("Email: ")
+            if False:# if email is registered
+                ui.showFeedback("Register failed. Please provide an unregistered email.")
+                registerLockExpiry = datetime.now() + timedelta(seconds=60)
+                continue
+            ui.showFeedback("Verification code sent to your email.")
+            verCode = ui.getString("Verification Code: ")
+            if False: #if verification code is incorrect
+                ui.showFeedback("Register failed. Please provide the correct and latest verification code sent.")
+                registerLockExpiry = datetime.now() + timedelta(seconds=60)
+                continue
             while True:
                 password1 = ui.getPassword("Set password: ")
                 password2 = ui.getPassword("Enter password again: ")
@@ -82,25 +92,27 @@ def loginPage(ui: UI):
                     ui.showFeedback("Passwords match.")
                     break
                 ui.showFeedback("Passwords do not match. Please try again.")
-            #registering account...
-            ui.showFeedback("Account registered successfully. You may now log in.")
+            #Send to server
+            ui.showFeedback("Account registered successfully.")
+            registerLockExpiry = datetime.now() + timedelta(seconds=60)
         elif userInput == 3:
             sys.exit(0)
+        
+        
 
 #The contact page, a list of chatroom
-def contactPage(ui: UI, status: Status):
+def contactPage(ui: UI, account: Account):
     ui.setTitle("Contacts:")
-    ui.drawMenu("Menu: 1. Enter chatroom | 2. Manage contacts | 3. Log out")
-    ui.displayFriend(status.friends)
+    ui.drawMenu("Menu: 1. Enter chatroom | 2. Manage contacts | 3. Log out | 4. Exit program")
+    ui.displayFriend(account.friendlist)
     while True:
-        userInput = ui.getInteger("Enter: ", 4)
+        userInput = ui.getInteger("Enter: ", 5)
         if userInput == 1:
-            if len(status.friends)<1:
+            if len(account.friendlist)<1:
                 ui.showFeedback("You have no friends at the moment. Add new friends to start a conversation.")
                 continue
-            recipent = ui.getInteger("Enter chatroom ID: ", len(status.friends)+1)
-            return {"nextPage":"chatroom", "recipent": status.friends[recipent-1]}
-            break
+            userInput = ui.getInteger("Enter chatroom ID: ", len(account.friendlist)+1)
+            return {"nextPage":"chatroom", "recipent": account.friendlist[userInput-1]}
         elif userInput == 2:
             return {"nextPage":"relationship"}
             break
@@ -208,6 +220,7 @@ def checkIfExpired(ui: UI, running: bool, messages):
                     del messages[i]
                     ui.displayMessages(messages)
             time.sleep(1)
+                
 
 if __name__ == "__main__":
     curses.wrapper(main)
