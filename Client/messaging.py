@@ -11,15 +11,15 @@ class Message:
 
         Parameters
         ----------
+        id : int
+            _description_
         content : str
             _description_
         sender : str
             _description_
         recipent : str
             _description_
-        creation_time : datetime | None, optional
-            The time the message is created, by default None for the instant time the class is created.
-            Note that messages could be sent by others and are created before receiving.
+        delivered
         lifetime : int, optional
             The message life time in seconds before it is detroyed, by default -1 for lasting forever.
         """

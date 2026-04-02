@@ -15,36 +15,37 @@ def main(stdscr):
     while True:
 
         #Load login page
-        result = loginPage(ui)
+        userEmail = loginPage(ui)
         ui.clearMsgWindow()
         ui.clearFeedback()
-        status = Status(.....)
+
+        storage = SecureStorage(userEmail)
+        friends = []
+        unread = []
+        blacklist = []
+        publicKey = ""
+        privateKey = ""
+
+        account = Account(userEmail, publicKey, privateKey, friends, unread, blacklist)
         #Load contact page
-        result = {"nextPage": "contact"}
+        pageInfo = {"nextPage": "contact"}
         while True:
             ui.clearMsgWindow()
-            if result["nextPage"]=="contact":
-                result = contactPage(ui, status)
+            if pageInfo["nextPage"]=="contact":
+                pageInfo = contactPage(ui, account)
 
-            elif result["nextPage"]=="chatroom":
-                result = chatroomPage(ui, status.sender, result["recipent"])
+            elif pageInfo["nextPage"]=="chatroom":
+                pageInfo = chatroomPage(ui, account.sender, pageInfo["recipent"])
 
-            elif result["nextPage"]=="relationship":
-                result = relationshipPage(ui, status)
+            elif pageInfo["nextPage"]=="relationship":
+                pageInfo = relationshipPage(ui, account)
 
-            elif result["nextPage"]=="request":
-                result = requestPage(ui, status)
+            elif pageInfo["nextPage"]=="request":
+                pageInfo = requestPage(ui, account)
 
-            elif result["nextPage"]=="login":
-                status = None
+            elif pageInfo["nextPage"]=="login":
+                account = None
                 break
-
-
-
-def notificationPage(ui: UI, status: Status):
-    ui.setTitle("Notification")
-    #print notification
-    ...
 
 #The login page
 def loginPage(ui: UI):
@@ -66,9 +67,7 @@ def loginPage(ui: UI):
                 ui.showFeedback("Login failed. Verification code incorrect.")
                 continue
             #Read local storage and server message
-            storage = SecureStorage(email)
-            session = Session(user=email, )
-            return {"email":email, "session":session}
+            return email
 
         elif userInput == 2:
             if datetime.now() < registerLockExpiry:
@@ -98,73 +97,74 @@ def loginPage(ui: UI):
         elif userInput == 3:
             sys.exit(0)
         
-        
 
-#The contact page, a list of chatroom
 def contactPage(ui: UI, account: Account):
     ui.setTitle("Contacts:")
     ui.drawMenu("Menu: 1. Enter chatroom | 2. Manage contacts | 3. Log out | 4. Exit program")
-    ui.displayFriend(account.friendlist)
+    ui.displayFriend(account.friendlist["friends"], account.friendlist["unread"])
+
     while True:
         userInput = ui.getInteger("Enter: ", 5)
         if userInput == 1:
             if len(account.friendlist)<1:
                 ui.showFeedback("You have no friends at the moment. Add new friends to start a conversation.")
                 continue
-            userInput = ui.getInteger("Enter chatroom ID: ", len(account.friendlist)+1)
-            return {"nextPage":"chatroom", "recipent": account.friendlist[userInput-1]}
+            userInput = ui.getInteger("Enter chatroom ID: ", len(account.friendlist["friends"])+1)
+            return {"nextPage":"chatroom", "recipent": account.friendlist["friends"][userInput-1]}
         elif userInput == 2:
             return {"nextPage":"relationship"}
-            break
         elif userInput == 3:
             return {"nextPage":"login"}
-            break
+        elif userInput == 4:
+            #Exchange token and 
+            sys.exit(0)
 
-    
-def updateMessageBuffer(recipent: str, messageBuffer):
-    #fetch 10 messages from server
-    ...
+def getMessages(recipient: str, pageNum: int):
+    ...    
 
-#Chatroom page: chatroom between the user and the recipent
-def chatroomPage(ui: UI, sender: str, recipent: str):
-    password = "pw"
-    ui.setTitle(f"Chatroom with {recipent}", password)
-    ui.drawMenu("Menu: 1. Send message | 2. Set life for messages | 3. Return to contacts")
+def chatroomPage(ui: UI, account: Account, recipientEmail: str, storage: SecureStorage):
+    recipientPublicKey = ""
+    macAddress = ""
+    recipient = Recipient(recipientEmail, recipientPublicKey)
+    page = 0
+    lifetime = -1
+    #update message buffer
 
-    storage = SecureStorage(f"{recipent}.enc", )
-
-    messageBuffer = []
-    life = -1
     #Set thread for checking message expiry
-    running = True
     stop_event = threading.Event()
-    expiryChecker = threading.Thread(target=checkIfExpired, args=(ui, running, messageBuffer))
+    expiryChecker = threading.Thread(target=checkIfExpired, args=(ui, recipient.messages))
     expiryChecker.start()
+
+    ui.drawMenu("Menu: 1. Send message | 2. Set message lifetime | 3. Remove message lifetime  | 4. Last page | 5. Next page | 6. Return to contacts")
     while True:
-        if len(messageBuffer)<10:
-            updateMessageBuffer(recipent, messageBuffer)
-        ui.displayMessage(messageBuffer)
-        ui.showFeedback("Page Number: ....")
-        userInput = ui.getInteger("Enter: ", 4)
+        ui.setTitle(f"Chatroom with {recipientEmail}: Page {page}")
+        ui.displayMessage(recipient.messages)
+        userInput = ui.getInteger("Enter: ", 7)
         if userInput == 1:
             content = ui.getString("Enter message: ")
-            msg = Message(content, sender, recipent, lifetime=life)
+            msg = Message(content, account.user, recipientEmail, lifetime)
             #Send message to server
             #Update message buffer
         elif userInput == 2:
             ui.showFeedback("Units of message lifetime are s(second), m(minute) and h(hour). Min: 30s, Max: 24h")
             life = ui.getTime("Enter message lifetime: ")
         elif userInput == 3:
+            lifetime = -1
+        elif userInput == 4:
+            ...
+        elif userInput == 5:
+            ...
+        elif userInput == 6:
             ret = {"nextPage": "contact"}
             break
-    running = False
+
     stop_event.set()
     expiryChecker.join()
     return ret
 
-def relationshipPage(ui: UI, status: Status):
+def relationshipPage(ui: UI, account: Account):
     ui.setTitle("Manage your contacts: ")
-    ui.displayFriend(status.friends)
+    ui.displayFriend(account.friendlist["friends"], account.friendlist["unread"])
     ui.drawMenu("Menu: 1. Send friend request | 2. Unfriend user | 3. Block user | 4. Check request | 5. Return to contacts")
     while True:
         userInput = ui.getInteger("Enter: ", 6)
@@ -178,42 +178,48 @@ def relationshipPage(ui: UI, status: Status):
             ui.showFeedback(f"Friend request sent to {userInput}")
         elif userInput == 2:
             userInput = ui.getString("Enter user email: ")
-            if userInput not in status.friends: # user does not exist in friend list
+            if userInput not in account.friendlist["friends"]: # user does not exist in friend list
                 ui.showFeedback("The user is not in your friend list.")
                 continue
-            status.friends.remove(userInput)
+            #send server unfrd
+            account.friendlist["friends"].remove(userInput)
             ui.showFeedback(f"Removed user: {userInput} from your friends list.")
         elif userInput == 3:
             userInput = ui.getString("Enter user email: ")
             #Ask server
             if False: # user does not exist
-                ui.showFeedback("User does not exist")
+                ui.showFeedback("User does not exist.")
                 continue
-            if userInput in status.friends:
-                status.friends.remove(userInput)
+            #send server block
+            account.blacklistUser(userInput)
             ui.showFeedback(f"Blocked user: {userInput}.")
         elif userInput == 4:
             return {"nextPage": "request"}
         elif userInput == 5:
             return  {"nextPage": "contact"}
 
-def requestPage(ui: UI, status: Status):
-    ui.setTitle("Friend requests:")
-    ui.displayIncomingRequest("")
-    ui.displaySentRequest("")
+def requestPage(ui: UI, account: Account):
+    ui.setTitle("Pending requests:")
+    ui.displayRequest(account.request["sent"], account.request["received"])
     ui.drawMenu("Menu: 1. Accept request | 2. Decline request | 3. Cancel request | 4. Return to manage page")
     while True:
         userInput = ui.getInteger("Enter: ", 5)
         if userInput == 1:
-            ...
+            userInput = ui.getInteger("Enter request ID: ", len(account.request["received"])+1)
+            #Send accept to server
+            account.addFriend(userInput-1)
         elif userInput == 2:
-            ...
+            userInput = ui.getInteger("Enter request ID: ", len(account.request["received"])+1)
+            #Send decline to server
+            account.removeFriend(userInput-1)
         elif userInput == 3:
-            ...
+            userInput = ui.getInteger("Enter request ID: ", len(account.request["sent"])+1)
+            #Send cancel to server
+            account.request["sent"].pop(userInput-1)
         elif userInput == 4:
             return {"nextPage": "relationship"}
 
-def checkIfExpired(ui: UI, running: bool, messages):
+def checkIfExpired(ui: UI, messages):
         while not stop_event.is_set():
             for i in range(len(messages)-1, -1, -1):
                 if messages[i].isExpired():

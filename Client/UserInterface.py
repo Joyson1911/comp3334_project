@@ -9,12 +9,10 @@ class UI:
         curses.echo()       #Show user typing: on
 
         self.h, self.w = stdscr.getmaxyx() #Get height(row) and width(col) of terminal
-
         """
+        Title window: Responsible for displaying page title, one line only
+
         Message window: Responsible for displaying user messages and friend lists
-        Line 0: Title of chatroom
-        Line 1-10: Messages between the user and the recipent
-        Line >=11: Friend lists
 
         Input window: Responsible for displaying input prompt, UI feedback and the menu
         Line 0: Dividing line
