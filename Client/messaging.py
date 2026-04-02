@@ -31,6 +31,6 @@ class Message:
         self.status = status
     
     def isExpired(self):
-        if self.expire_time == None:
+        if self.deleteTime == -1:
             return False  
         return datetime.now() >= self.deleteTime
