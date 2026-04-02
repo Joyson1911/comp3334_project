@@ -4,3 +4,4 @@ __pycache__/
 *.pem
 *.ini
 *.json
+test/

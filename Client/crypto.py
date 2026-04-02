@@ -29,7 +29,11 @@ class RSA():
         self.__private_key = priv_key
     
     @classmethod
+<<<<<<< Updated upstream
     def create(cls, public_expo: int = 65537, bit_length: int = 1024) -> RSA:
+=======
+    def create(cls, public_expo: int = 65537, bit_length: int = 2048) -> rsa:
+>>>>>>> Stashed changes
         """Creates an RSA encryption instance with given parameters.
 
         Parameters
@@ -42,7 +46,7 @@ class RSA():
         return cls(*RSA.__gen_key_pair(public_expo, bit_length))
     
     @classmethod
-    def from_str(cls, pub_key_str: str, priv_key_str: str, password: str) -> RSA:
+    def from_str(cls, pub_key_str: str, priv_key_str: str, password: str) -> rsa:
         """Creates an RSA instance by the given key string and decryption code.
 
         Parameters
