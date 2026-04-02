@@ -5,3 +5,4 @@ __pycache__/
 *.ini
 *.json
 test/
+test_*.py

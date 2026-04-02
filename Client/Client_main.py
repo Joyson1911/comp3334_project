@@ -1,13 +1,18 @@
 from messaging import Message
-#from network import Client_API
+from network import Client_API
 import threading
 import time
 import sys
 import curses
 from UserInterface import UI
-#from storage import SecureStorage
+from storage import SecureStorage
 from session import Account, Recipient
 from datetime import datetime, timedelta
+
+from network import Client_API
+
+api = Client_API("http://localhost:3000")
+api.connect()
 
 def main(stdscr):
 
@@ -58,15 +63,20 @@ def loginPage(ui: UI):
         userInput = ui.getInteger("Enter: ", 4)
         if userInput == 1:
             email = ui.getString("Email: ")
+            
             #ask server to send OTP
-            if False: #if email is unregistered
+            otp = api.otp_request(email, "login")
+            
+            if otp is None: #if email is unregistered
                 ui.showFeedback("Login failed. Please enter a valid and registered email.")
                 continue
             ui.showFeedback("Verification code sent to your email.")
             password = ui.getPassword("Password: ")
             verCode = ui.getString("Verification Code: ")
-            if False: #if password or verCode is incorrect
-                ui.showFeedback("Login failed. Verification code incorrect.")
+            
+            login_result = api.login(email, password, verCode)
+            if not login_result.get("success"): #if password or verCode is incorrect
+                ui.showFeedback(f"Login failed. {login_result.get('error')}")
                 continue
             #Read local storage and server message
             return email
@@ -76,16 +86,18 @@ def loginPage(ui: UI):
                 ui.showFeedback(f"Registration locked. Please try again in {(registerLockExpiry - datetime.now()).total_seconds()} seconds.") 
                 continue
             email = ui.getString("Email: ")
-            if False:# if email is registered
+            
+            otp = api.otp_request(email, "register")
+            
+            if otp is None:
+            # if False: # if email is registered
                 ui.showFeedback("Register failed. Please provide an unregistered email.")
                 registerLockExpiry = datetime.now() + timedelta(seconds=60)
                 continue
+            
             ui.showFeedback("Verification code sent to your email.")
             verCode = ui.getString("Verification Code: ")
-            if False: #if verification code is incorrect
-                ui.showFeedback("Register failed. Please provide the correct and latest verification code sent.")
-                registerLockExpiry = datetime.now() + timedelta(seconds=60)
-                continue
+            
             while True:
                 password1 = ui.getPassword("Set password: ")
                 password2 = ui.getPassword("Enter password again: ")
@@ -93,6 +105,14 @@ def loginPage(ui: UI):
                     ui.showFeedback("Passwords match.")
                     break
                 ui.showFeedback("Passwords do not match. Please try again.")
+                
+            register_result = api.register(email, password1, verCode)
+            
+            if not register_result.get("success"):
+                ui.showFeedback(f"Register failed. {register_result.get('error')}")
+                registerLockExpiry = datetime.now() + timedelta(seconds=60)
+                continue
+
             #Send to server
             ui.showFeedback("Account registered successfully.")
             registerLockExpiry = datetime.now() + timedelta(seconds=60)
@@ -173,7 +193,10 @@ def relationshipPage(ui: UI, account: Account):
         if userInput == 1:
             userInput = ui.getString("Enter user email: ")
             #Ask server
-            if False: #if user does not exist
+            
+            send_result = api.send_friend_request(userInput)
+            
+            if not send_result["success"]: #if user does not exist
                 ui.showFeedback("User does not exist.")
                 continue
             #Send request
