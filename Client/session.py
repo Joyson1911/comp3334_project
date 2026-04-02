@@ -9,7 +9,7 @@ class Account:
     
     def __init__(self, user: str, publicKey: str, privateKey: str):
         self.user = user
-        self.friendlist = []
+        self.friendlist = {"friends": [], "unread": []}
         self.blacklist = []
         self.publicKey = publicKey
         self.privateKey = privateKey

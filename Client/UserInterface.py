@@ -1,8 +1,7 @@
 import curses
-
+from typing import List
 
 class UI:
-
 
     def __init__(self, stdscr):
         self.stdscr = stdscr
@@ -24,57 +23,60 @@ class UI:
         Line 3: Input line
         """
         # Create windows
-        self.msg_win = curses.newwin(self.h - 4, self.w, 0, 0)   # Top: Display chatroom
+        self.title_win = curses.newwin(1, self.w, 0, 0)
+        self.msg_win = curses.newwin(self.h - 5, self.w, 0, 0)   # Top: Display chatroom
         self.input_win = curses.newwin(4, self.w, self.h - 4, 0) # Bottom: Input window: input, menu, error
         
         self.msg_win.scrollok(True) #Scrolling = True
 
         # Divider line
-        self.input_win.hline(0, 0, curses.ACS_HLINE, self.w)
-
-        # Refresh
+        self.input_win.hline(0, 0, curses.ACS_HLINE, 10)
         self.input_win.refresh()
-        self.msg_win.refresh()
-
-    def msg_win_display():
-        
 
     def displayMessage(self, messages):
-        #Display messages in line 1 to 10 of the message window
+        #Display messages in the message window
+        self.msg_win.clear()
         for i in range(len(messages)):
-            self.msg_win.addstr(i+1, 0, f"{messages[i].sender}: {messages[i].message}")
-            self.msg_win.clrtoeol()
-        #This part is needed if the messages size could be smaller than 10
-        for i in range(len(messages)+1, 11):
-            self.msg_win.move(i, 0)
-            self.msg_win.clrtoeol()
+            self.msg_win.addstr(i, 0, f"{messages[i].sender}: {messages[i].message}")
         self.msg_win.refresh()
 
-    def displayFriend(self, friends):
-        #Display friend in line 1 to 10 of the message window
-        for i in range(1, len(friends)+1):
-            self.msg_win.addstr(i, 0, f"{i}: {friends[i-1]}")
-            self.msg_win.clrtoeol()
+    def displayFriend(self, friends: List[str], unread: List[int]):
+        #Display friend in the message window
+        self.msg_win.clear()
+        self.msg_win.addstr(0, 0, "Friends:")
+        for i in range(len(friends)):
+            self.msg_win.addstr(i, 0, f"{i+1}: {friends[i]}")
+            if unread[i]>0:
+                self.msg_win.addstr(f" ({unread[i]})") 
         self.msg_win.refresh()
 
-    def displayIncomingRequest(self, incomingRequest):
-        ...
+    def displayRequest(self, sentRequests: List[str], rcvRequests: List[str]):
+        #Display sent and received requests in the message window
+        self.msg_win.clear()
+        self.msg_win.addstr(0, 0, "Users who wants to add you:")
+        row = 1
+        for i in range(len(rcvRequests)):
+            self.msg_win.addstr(row, 0, f"{i+1}: {rcvRequests[i]}")
+            row+=1
+        self.msg_win.addstr(row, 0, "Requests you sent that are still pending:")
+        row+=1
+        for i in range(len(sentRequests)):
+            self.msg_win.addstr(row, 0, f"{i+1}: {rcvRequests[i]}")
+            row+=1
+        self.msg_win.refresh()
 
-    def displaySentRequest(self, sentRequest):
-        ...
-
-    def setTitle(self, title):
+    def setTitle(self, title: str):
         #Set the title of the feedback message in the first line of message window
-        self.msg_win.addstr(0, 0, title)
-        self.msg_win.clrtoeol()
-        self.msg_win.refresh()
+        self.title_win.addstr(0, 0, title)
+        self.title_win.clrtoeol()
+        self.title_win.refresh()
 
     def clearMsgWindow(self):
         #Clear message window
         self.msg_win.clear()
         self.msg_win.refresh()
 
-    def showFeedback(self, feedback):
+    def showFeedback(self, feedback: str):
         #Display the feedback message in the line 1 of input window.
         self.input_win.addstr(1, 0, feedback)
         self.input_win.clrtoeol()
@@ -86,13 +88,13 @@ class UI:
         self.input_win.clrtoeol()
         self.input_win.refresh()
 
-    def drawMenu(self, menuMessage):
+    def drawMenu(self, menuMessage: str):
         #Display the menu in the line 2 of input window.
         self.input_win.addstr(2, 0, menuMessage)
         self.input_win.clrtoeol()
         self.input_win.refresh()
 
-    def getInteger(self, inputMessage, limit):
+    def getInteger(self, inputMessage: str, limit: int):
         #Display the input prompt in the line 3 of input window
         self.input_win.addstr(3, 0, inputMessage)
         y, x = self.input_win.getyx()
@@ -113,7 +115,6 @@ class UI:
                 continue
             valid = True
             self.clearFeedback()
-
         return userInput
 
     def getString(self, inputMessage):
