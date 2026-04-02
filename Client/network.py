@@ -175,44 +175,78 @@ class Client_API:
             print(f"请求出错: {e}")
         return None
     
-    def register(self, email: str, password: str | None, otp: int | None, callback: Callable = None):
-        """
-        Register a new user account
-        """
-        def on_response(data):
-            if data.get('success'):
-                print(f"Registration successful: {email}")
-            else:
-                print(f"Registration failed: {data.get('error')}")
-            if callback:
-                callback(data)
+    # def register(self, email: str, password: str | None, otp: int | None, callback: Callable = None):
+    #     """
+    #     Register a new user account
+    #     """
+    #     def on_response(data):
+    #         if data.get('success'):
+    #             message = {"success": True}
+    #         else:
+    #             message = {"success": False, "error": f"Registration failed: {data.get('error')}"}
+    #         if callback:
+    #             callback(message)
         
-        self.sio.emit('register', {
-            'email': email,
-            'password': password,
-            'otp': otp,
-        }, callback=on_response)
+    #     self.sio.emit('register', {
+    #         'email': email,
+    #         'password': password,
+    #         'otp': otp,
+    #     }, callback=on_response)
     
-    def login(self, email: str, password: str, otp: int, callback: Callable = None):
-        """
-        Login to existing account
-        """
-        def on_response(data):
-            if data.get('success'):
+    def register(self, email: str, password: str, otp: int):
+        try:
+            data = self.sio.call('register', {
+                'email': email,
+                'password': password,
+                'otp': otp,
+            }, timeout=10)
+
+            if data and data.get('success'):
+                return {"success": True}
+            else:
+                return {"success": False, "error": {data.get('error')}}
+        except Exception as e:
+            return {"success": False, "error": f"Network error: {str(e)}"}
+    
+    # def login(self, email: str, password: str, otp: int, callback: Callable = None):
+    #     """
+    #     Login to existing account
+    #     """
+    #     def on_response(data):
+    #         if data.get('success'):
+    #             self.token = data['access_token']
+    #             self.user_email = email
+    #             self.is_authenticated = True
+    #             print(f"Login successful: {email}")
+    #             print(data.get('friends_list', ["no friends"]))
+    #         else:
+    #             print(f"Login failed: {data.get('error')}")
+    #         if callback:
+    #             callback(data)
+        
+    #     self.sio.emit('login', {
+    #         'email': email,
+    #         'password': password,
+    #         'otp': otp
+    #     }, callback=on_response)
+    
+    def login(self, email: str, password: str, otp: int):
+        try:
+            data = self.sio.call('login', {
+                'email': email,
+                'password': password,
+                'otp': otp
+            }, timeout=10)
+
+            if data and data.get('success'):
                 self.token = data['access_token']
                 self.user_email = email
                 self.is_authenticated = True
-                print(f"Login successful: {email}")
+                return {"success": True, "friends_list": data.get('friends_list', ['no friends'])}
             else:
-                print(f"Login failed: {data.get('error')}")
-            if callback:
-                callback(data)
-        
-        self.sio.emit('login', {
-            'email': email,
-            'password': password,
-            'otp': otp
-        }, callback=on_response)
+                return {"success": False, "error": f"Login failed: {data.get('error')}"}
+        except Exception as e:
+            return {"success": False, "error": f"Network error: {str(e)}"}
     
     def logout(self):
         """Logout from current session"""
@@ -224,39 +258,66 @@ class Client_API:
     
     # ============ Friend Management Methods ============
     
-    def send_friend_request(self, user_email: str, message: str = "", callback: Callable = None):
-        """
-        Send friend request to another user
-        """
-        def on_response(data):
-            if data.get('success'):
-                print(f"Friend request sent to {user_email}")
-            else:
-                print(f"Failed to send request: {data.get('error')}")
-            if callback:
-                callback(data)
+    # def send_friend_request(self, user_email: str, message: str = "", callback: Callable = None):
+    #     """
+    #     Send friend request to another user
+    #     """
+    #     def on_response(data):
+    #         if data.get('success'):
+    #             print(f"Friend request sent to {user_email}")
+    #         else:
+    #             print(f"Failed to send request: {data.get('error')}")
+    #         if callback:
+    #             callback(data)
         
-        self.sio.emit('send_friend_request', {
-            'user_email': user_email,
-            'message': message
-        }, callback=on_response)
+    #     self.sio.emit('send_friend_request', {
+    #         'user_email': user_email,
+    #         'message': message
+    #     }, callback=on_response)
         
-    def respond_to_friend_request(self, request_id, action, callback: Callable =None):
-        """
-        Handle a pending friend request (accept or reject)
-        """
-        def on_response(data):
-            if data.get('success'):
-                print(f"Friend request {action}ed")
+    def send_friend_request(self, user_email: str):
+        try:
+            data = self.sio.call('send_friend_request', {
+                'user_email': user_email,
+            }, timeout=10)
+
+            if data and data.get('success'):
+                return {"success": True}
             else:
-                print(f"Failed to {action} request: {data.get('error')}")
-            if callback:
-                callback(data)
+                return {"success": False, "error": f"Failed to send request: {data.get('error')}"}
+        except Exception as e:
+             return {"success": False, "error": f"Network error: {str(e)}"}
+        
+    # def respond_to_friend_request(self, request_id, action, callback: Callable =None):
+    #     """
+    #     Handle a pending friend request (accept or reject)
+    #     """
+    #     def on_response(data):
+    #         if data.get('success'):
+    #             print(f"Friend request {action}ed")
+    #         else:
+    #             print(f"Failed to {action} request: {data.get('error')}")
+    #         if callback:
+    #             callback(data)
                 
-        self.sio.emit('respond_to_friend_request', {
-            'request_id': request_id,
-            'action': action
-        }, callback=on_response)
+    #     self.sio.emit('respond_to_friend_request', {
+    #         'request_id': request_id,
+    #         'action': action
+    #     }, callback=on_response)
+        
+    def respond_to_friend_request(self, request_id, action):
+        try:
+            data = self.sio.call('respond_to_friend_request', {
+                'request_id': request_id,
+                'action': action
+            }, timeout=10)
+
+            if data and data.get('success'):
+                return {"success": True}
+            else:
+                return {"success": False, "error": f"Failed to {action} request: {data.get('error')}"}
+        except Exception as e:
+             return {"success": False, "error": f"Network error: {str(e)}"}
         
     # ============ Messaging Methods ============
     

@@ -6,7 +6,7 @@ from flask_socketio import SocketIO, emit, disconnect, ConnectionRefusedError
 import secrets
 from datetime import datetime
 from datetime import timedelta
-from Email import emailVerification
+# from Email import emailVerification
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -21,7 +21,7 @@ messages = []        # {id, from_email, to_email, content, timestamp, delivered}
 online_users = {}    # sid -> user_email
 user_sid_map = {}    # user_email -> sid
 sessions = {}        # token -> user
-token_map = {}      # token -> expiry_time
+token_map = {}      # token -> token_expiry_time
 pending_otps = {}
 
 # ============ Helper Functions ============
@@ -79,6 +79,11 @@ def handle_otp_request(data):
         # Check if email already exists in registration
         if find_user_by_email(email):
             return {'success': False, 'error': 'User (Email) already exists'}
+        
+    if action == 'login':
+        # Check if email exists for login
+        if not find_user_by_email(email):
+            return {'success': False, 'error': 'User (Email) not found'}
     
     # only for testing!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     #should use email.py to send email with OTP!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -97,15 +102,14 @@ def handle_register(data):
     """
     email = data.get('email')
     password = data.get('password')
-    otp = data.get('otp')
+    otp = str(data.get('otp')).strip()
     
     # Validate input
     if not email or not password or not otp:
         return {'success': False, 'error': 'Email, password, and OTP are required'}
     
-    # Check if email already exists
-    if find_user_by_email(email):
-        return {'success': False, 'error': 'User (Email) already exists'}
+    if otp != str(pending_otps.get(email)).strip():
+        return {'success': False, 'error': 'Invalid OTP'}
     
     # Create new user
     new_user = {
@@ -127,17 +131,23 @@ def handle_login(data):
     """
     email = data.get('email')
     password = data.get('password')
-    otp = data.get('otp')
+    otp = str(data.get('otp')).strip()
     
     user = find_user_by_email(email)
+    
+    print(f"from {email}: {otp}")
     
     # Validate credentials
     if not user or user['password'] != password or not otp:
         return {'success': False, 'error': 'Invalid credentials'}
     
+    print(pending_otps.get(email))
+    if otp != str(pending_otps.get(email)).strip():
+        return {'success': False, 'error': 'Invalid OTP'}
+    
     # Generate access token
     token = generate_token()
-    expiry_time = datetime.now() + timedelta(hours=24)
+    token_expiry_time = datetime.now() + timedelta(hours=24)
     sessions[token] = user
     
     # Update current connection mapping
@@ -145,7 +155,7 @@ def handle_login(data):
     online_users[sid] = email
     user_sid_map[email] = sid
     
-    # offline_msgs = get_offline_messages(user['email'])
+    # Send offline messages if any
     offline_msgs = [
         msg for msg in messages 
         if msg['to_email'] == user['email'] and not msg.get('delivered', False)
@@ -163,7 +173,13 @@ def handle_login(data):
         print(f"Sending {len(offline_reqs)} offline friend requests to {user['email']}")
         emit('offline_friend_requests', offline_reqs)
         
-    return{'success': True, 'access_token': token,'user': {'email': email}, 'expiry_time': expiry_time.isoformat()}
+    return {
+        'success': True, 
+        'access_token': token,
+        'user': {'email': email}, 
+        'token_expiry_time': token_expiry_time.isoformat(),
+        'friends_list': [f['friend_email'] for f in friends if f['user_email'] == email]
+    }
 
 
 @socketio.on('logout')
@@ -192,7 +208,7 @@ def handle_logout(data):
 def handle_send_friend_request(data):
     """
     Send a friend request to another user
-    Expected data: {user_email, message (optional)}
+    Expected data: {user_email}
     """
     sid = request.sid
     if sid not in online_users:
@@ -230,7 +246,6 @@ def handle_send_friend_request(data):
         socketio.emit('friend_request_received', {
             'request_id': new_request['id'],
             'from_email': user_email,
-            'message': data.get('message', '')
         }, room=user_sid_map[friend_email])
     
     return {'success': True, 'message': 'Request sent', 'request_id': new_request['id']}
