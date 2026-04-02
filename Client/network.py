@@ -9,12 +9,12 @@ class Client_API:
     All communication happens through WebSocket connection.
     """
     
-    def __init__(self, server_url: str = "http://localhost:3000"):
+    def __init__(self, server_url: str = "https://localhost:3000"):
         """
         Initialize chat client
         
         Args:
-            server_url: WebSocket server URL (e.g., http://localhost:3000)
+            server_url: WebSocket server URL (e.g., https://localhost:3000)
         """
         self.server_url = server_url
         self.sio = socketio.Client()
@@ -27,6 +27,7 @@ class Client_API:
         self.on_message = None              # Called when new message received
         self.on_friend_request = None       # Called when friend request received
         self.on_friend_accepted = None      # Called when friend request accepted
+        self.on_friend_rejected = None      # Called when friend request rejected
         self.on_offline_messages = None     # Called when offline messages received
         self.on_friends_update = None       # Called when friend list updated
         self.on_connected = None            # Called when WebSocket connected
@@ -94,6 +95,20 @@ class Client_API:
             print(f"Success: {data['friend_email']} accepted your friend request")
             if self.on_friend_accepted:
                 self.on_friend_accepted(data)
+                
+        @self.sio.on('friend_request_rejected')
+        def on_friend_rejected(data):
+            """Handle friend request rejection notification"""
+            print(f"Info: rejected your friend request")
+            if self.on_friend_rejected:
+                self.on_friend_rejected(data)
+
+        @self.sio.on('offline_friend_requests')
+        def on_offline_requests(requests):
+            print(f"--- Received {len(requests)} offline friend requests ---")
+            for req in requests:
+                if self.on_friend_request:
+                    self.on_friend_request(req)
         
         @self.sio.on('error')
         def on_error(data):
@@ -196,21 +211,23 @@ class Client_API:
             'message': message
         })
     
-    def accept_friend_request(self, request_id: int, callback: Callable = None):
+    def respond_to_friend_request(self, request_id, action, callback: Callable =None):
         """
-        Accept a pending friend request
+        Handle a pending friend request (accept or reject)
         """
         def on_response(data):
             if data.get('success'):
-                print(f"Friend request accepted")
+                print(f"Friend request {action}ed")
             else:
-                print(f"Failed to accept request: {data.get('error')}")
+                print(f"Failed to {action} request: {data.get('error')}")
             if callback:
                 callback(data)
+                
+        self.sio.emit('respond_to_friend_request', {
+            'request_id': request_id,
+            'action': action
+        }, callback=on_response)
         
-        self.sio.on('accept_friend_response', on_response)
-        self.sio.emit('accept_friend_request', {'request_id': request_id})
-    
     # ============ Messaging Methods ============
     
     def send_message(self, to_email: str, content: str, callback: Callable = None):

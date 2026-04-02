@@ -9,7 +9,7 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 # In-memory storage (replace with database in production !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!)
 users = []           # {id, email, password, otp, created_at}
 friends = []         # {user_email, friend_email, created_at}
-friend_requests = [] # {id, from_email, to_email, status, created_at}
+friend_requests = [] # {id, from_email, to_email, status, created_at}        no id 
 messages = []        # {id, from_email, to_email, content, timestamp, delivered}
 
 # Online user management
@@ -150,6 +150,15 @@ def handle_login(data):
     if offline_msgs:
         print(f"Sending {len(offline_msgs)} offline messages to {user['email']}")
         emit('offline_messages', offline_msgs)
+    
+    offline_reqs = [
+        req for req in friend_requests 
+        if req['to_email'] == user['email'] and req['status'] == 'pending'
+    ]
+    if offline_reqs:
+        print(f"Sending {len(offline_reqs)} offline friend requests to {user['email']}")
+        emit('offline_friend_requests', offline_reqs)
+
 
 @socketio.on('logout')
 def handle_logout(data):
@@ -229,52 +238,65 @@ def handle_send_friend_request(data):
         'request_id': new_request['id']
     })
 
-@socketio.on('accept_friend_request')
-def handle_accept_friend_request(data):
+@socketio.on('respond_to_friend_request')
+def handle_respond_to_friend_request(data):
     """
-    Accept a pending friend request
-    Expected data: {request_id}
+    Handle accepting or rejecting a friend request
+    Expected data: {request_id, action: "accept" | "reject"}
     """
     sid = request.sid
     if sid not in online_users:
-        emit('error', {'error': 'Not authenticated'})
-        return
+        return {'success': False, 'error': 'Not authenticated'}
     
     user_email = online_users[sid]
     req_id = data.get('request_id')
+    action = data.get('action')
     
     # Find the request
     req = next((r for r in friend_requests if r['id'] == req_id), None)
     if not req or req['to_email'] != user_email:
-        emit('accept_friend_response', {'success': False, 'error': 'Request not found'})
-        return
+        return {'success': False, 'error': 'Request not found'}
+    
+    if req['status'] != 'pending':
+        return {'success': False, 'error': 'Request already processed'}
     
     # Update request status
-    req['status'] = 'accepted'
+    if action == 'accept':
+        req['status'] = 'accepted'
     
-    # Add bidirectional friendship
-    friends.append({
-        'user_email': req['from_email'],
-        'friend_email': req['to_email'],
-        'created_at': datetime.now().isoformat()
-    })
-    friends.append({
-        'user_email': req['to_email'],
-        'friend_email': req['from_email'],
-        'created_at': datetime.now().isoformat()
-    })
-    
-    # Notify the requester in real-time
-    if req['from_email'] in user_sid_map:
-        socketio.emit('friend_request_accepted', {
+        # Add bidirectional friendship
+        friends.append({
+            'user_email': req['from_email'],
             'friend_email': req['to_email'],
-            'message': f"{req['to_email']} accepted your friend request"
-        }, room=user_sid_map[req['from_email']])
+            'created_at': datetime.now().isoformat()
+        })
+        friends.append({
+            'user_email': req['to_email'],
+            'friend_email': req['from_email'],
+            'created_at': datetime.now().isoformat()
+        })
     
-    emit('accept_friend_response', {
-        'success': True,
-        'message': 'Friend request accepted'
-    })
+        # Notify the requester in real-time
+        if req['from_email'] in user_sid_map:
+            socketio.emit('friend_request_accepted', {
+                'friend_email': req['to_email'],
+                'message': f"{req['to_email']} accepted your friend request"
+            }, room=user_sid_map[req['from_email']])
+            
+    elif action == 'reject':
+        req['status'] = 'rejected'
+        
+        # Notify the requester in real-time
+        if req['from_email'] in user_sid_map:
+            socketio.emit('friend_request_rejected', {
+                'from_email': req['to_email'],
+                'request_id': req_id
+            }, room=user_sid_map[req['from_email']])
+            
+    else:
+        return {'success': False, 'error': 'Invalid action'}
+    
+    return {'success': True, 'message': f'Request {action}ed successfully'}
 
 # ============ Messaging Events ============
 
@@ -354,6 +376,5 @@ if __name__ == '__main__':
     print("=" * 50)
     print("Chat Server Starting")
     print("=" * 50)
-    print(f"WebSocket endpoint: ws://localhost:3000")
     
     socketio.run(app, host='0.0.0.0', port=3000, debug=True)
