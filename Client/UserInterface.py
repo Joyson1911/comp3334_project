@@ -1,5 +1,6 @@
 import curses
 
+
 class UI:
 
 
@@ -94,8 +95,8 @@ class UI:
         y, x = self.input_win.getyx()
         self.input_win.refresh()
         valid = False
-        while not valid:
-            self.input_win.move(y, x) 
+        while not valid: 
+            self.input_win.move(y, x)
             self.input_win.clrtoeol()
             self.input_win.refresh()
             try:
@@ -127,7 +128,7 @@ class UI:
     def getTime(self, inputMessage):
         units = {"s": 1, "m": 60, "h": 3600}
         while True:
-            userInput = self.getString()
+            userInput = self.getString(inputMessage)
             try:    
                 value = int(userInput[:-1])
                 unit = userInput[-1].lower()

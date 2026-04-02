@@ -5,7 +5,8 @@ import time
 import sys
 import curses
 from UserInterface import UI
-from enum import Enum
+from storage import SecureStorage
+from session import Status, Recipient
 
 def main(stdscr):
 
@@ -13,10 +14,10 @@ def main(stdscr):
     while True:
 
         #Load login page
-        user = loginPage(ui)
+        result = loginPage(ui)
         ui.clearMsgWindow()
         ui.clearFeedback()
-        status = Status(user)
+        status = Status(.....)
         #Load contact page
         result = {"nextPage": "contact"}
         while True:
@@ -37,20 +38,7 @@ def main(stdscr):
                 status = None
                 break
 
-class Status:
-    
-    def __init__(self, sender: str):
-        self.sender = sender
-        self.recipent = None
-        self.friends = ["alice", "bob"]
 
-    def updateMsgBuffer(self, index):
-        #fetch messages from server
-        ...
-
-    def readFriends(self):
-        #read friends from file
-        ...
 
 def notificationPage(ui: UI, status: Status):
     ui.setTitle("Notification")
@@ -73,7 +61,7 @@ def loginPage(ui: UI):
             while True:
                 password = ui.getPassword("Password: ")
                 if True: #if password is correct
-                    return email
+                    return {"email":email, "storage": SecureStorage(f"{email}.enc", password)}
                 ui.showFeedback("Password incorrect. Please try again.")
 
         elif userInput == 2:
@@ -104,10 +92,6 @@ def contactPage(ui: UI, status: Status):
     ui.setTitle("Contacts:")
     ui.drawMenu("Menu: 1. Enter chatroom | 2. Manage contacts | 3. Log out")
     ui.displayFriend(status.friends)
-    #Start thread: check message list until the chat ends
-    running = True
-    expiryChecker = threading.Thread(target=checkIfExpired, args=(status, ui))
-    expiryChecker.start()
     while True:
         userInput = ui.getInteger("Enter: ", 4)
         if userInput == 1:
@@ -115,18 +99,14 @@ def contactPage(ui: UI, status: Status):
                 ui.showFeedback("You have no friends at the moment. Add new friends to start a conversation.")
                 continue
             recipent = ui.getInteger("Enter chatroom ID: ", len(status.friends)+1)
-            result =  {"nextPage":"chatroom", "recipent": status.friends[recipent-1]}
+            return {"nextPage":"chatroom", "recipent": status.friends[recipent-1]}
             break
         elif userInput == 2:
-            result =  {"nextPage":"relationship"}
+            return {"nextPage":"relationship"}
             break
         elif userInput == 3:
-            result = {"nextPage":"login"}
+            return {"nextPage":"login"}
             break
-    #End thread
-    running = False
-    expiryChecker.join()
-    return result
 
     
 def updateMessageBuffer(recipent: str, messageBuffer):
@@ -135,10 +115,19 @@ def updateMessageBuffer(recipent: str, messageBuffer):
 
 #Chatroom page: chatroom between the user and the recipent
 def chatroomPage(ui: UI, sender: str, recipent: str):
-    ui.setTitle(f"Chatroom with {recipent}")
+    password = "pw"
+    ui.setTitle(f"Chatroom with {recipent}", password)
     ui.drawMenu("Menu: 1. Send message | 2. Set life for messages | 3. Return to contacts")
+
+    storage = SecureStorage(f"{recipent}.enc", )
+
     messageBuffer = []
     life = -1
+    #Set thread for checking message expiry
+    running = True
+    stop_event = threading.Event()
+    expiryChecker = threading.Thread(target=checkIfExpired, args=(ui, running, messageBuffer))
+    expiryChecker.start()
     while True:
         if len(messageBuffer)<10:
             updateMessageBuffer(recipent, messageBuffer)
@@ -154,7 +143,12 @@ def chatroomPage(ui: UI, sender: str, recipent: str):
             ui.showFeedback("Units of message lifetime are s(second), m(minute) and h(hour). Min: 30s, Max: 24h")
             life = ui.getTime("Enter message lifetime: ")
         elif userInput == 3:
-            return {"nextPage": "contact"}
+            ret = {"nextPage": "contact"}
+            break
+    running = False
+    stop_event.set()
+    expiryChecker.join()
+    return ret
 
 def relationshipPage(ui: UI, status: Status):
     ui.setTitle("Manage your contacts: ")
@@ -208,7 +202,7 @@ def requestPage(ui: UI, status: Status):
             return {"nextPage": "relationship"}
 
 def checkIfExpired(ui: UI, running: bool, messages):
-        while running:
+        while not stop_event.is_set():
             for i in range(len(messages)-1, -1, -1):
                 if messages[i].isExpired():
                     del messages[i]

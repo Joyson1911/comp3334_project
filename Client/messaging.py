@@ -1,10 +1,12 @@
 from datetime import datetime, timedelta
 
 class Message:
+    SENT = False
+    DELIVERED = True
     
     #content: message body, sender, recipent: email, lifetime: seconds
     # TODO complete the class and docs 
-    def __init__(self, content: str, sender: str, recipent: str, creation_time: datetime | None = None, lifetime: int = -1):
+    def __init__(self, content: str, sender: str, recipent: str, lifetime: int = -1, status: bool = None):
         """Construct a message object by the given args
 
         Parameters
@@ -25,13 +27,13 @@ class Message:
         self.sender = sender
         self.recipent = recipent
         # time of creation
-        self.timestamps = creation_time if creation_time else datetime.now() 
-        self.expire_time = (self.timestamps+timedelta(seconds = lifetime)) if lifetime > 0 else None #time of expiry
+        self.deleteTime = -1 if lifetime==-1 else datetime.now() + timedelta(seconds=lifetime)
+        self.status = status
     
     def isExpired(self):
         if self.expire_time == None:
             return False  
-        return datetime.now() >= self.expire_time
+        return datetime.now() >= self.deleteTime
     
 
         
