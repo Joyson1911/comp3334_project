@@ -3,8 +3,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa, padding, types
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPublicKey
 from cryptography.hazmat.primitives import serialization as ks, hashes
 from cryptography.exceptions import InvalidSignature, InvalidKey
-from math import sqrt
-from random import randint
+from typing import Self
 from enum import Enum
 
 class Padding(Enum):
