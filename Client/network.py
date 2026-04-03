@@ -163,17 +163,17 @@ class Client_API:
     # For testing purposes, return OTP directly !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     def otp_request(self, email: str, action: str):
         try:
-            # call 会直接等待服务器处理完并返回结果，不需要自己写 callback
             data = self.sio.call('otp_request', {
                 'email': email,
                 'action': action
             }, timeout=10)
 
             if data and data.get('success'):
-                return data.get('otp')
+                return {"success": True, "otp": data.get('otp')}
+            else:
+                return {"success": False, "error": {data.get('error')}}
         except Exception as e:
-            print(f"请求出错: {e}")
-        return None
+            return {"success": False, "error": f"Network error: {str(e)}"}
     
     # def register(self, email: str, password: str | None, otp: int | None, callback: Callable = None):
     #     """
