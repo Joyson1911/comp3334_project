@@ -22,7 +22,9 @@ online_users = {}    # sid -> user_email
 user_sid_map = {}    # user_email -> sid
 sessions = {}        # token -> user
 token_map = {}      # token -> token_expiry_time
-pending_otps = {}
+pending_otps = {}   # email -> otp (for registration/login verification)
+
+otp_lifetime = timedelta(minutes=5)  # OTP lifetime 
 
 # ============ Helper Functions ============
 
@@ -35,7 +37,7 @@ def find_user_by_email(email):
 
 def generate_token():
     """Generate a secure random token for authentication"""
-    return secrets.token_urlsafe(32)
+    return secrets.token_urlsafe(32), datetime.now() + timedelta(hours=24)
 
 # ============ WebSocket Event Handlers ============
 
@@ -127,33 +129,53 @@ def handle_register(data):
 def handle_login(data):
     """
     Authenticate user and establish session
-    Expected data: {email, password, otp}
+    Expected data: {token} or {email, password, otp}
     """
+    token = data.get('token')
+
     email = data.get('email')
     password = data.get('password')
     otp = str(data.get('otp')).strip()
     
-    user = find_user_by_email(email)
-    
-    print(f"from {email}: {otp}")
-    
-    # Validate credentials
-    if not user or user['password'] != password or not otp:
-        return {'success': False, 'error': 'Invalid credentials'}
-    
-    print(pending_otps.get(email))
-    if otp != str(pending_otps.get(email)).strip():
-        return {'success': False, 'error': 'Invalid OTP'}
-    
-    # Generate access token
-    token = generate_token()
-    token_expiry_time = datetime.now() + timedelta(hours=24)
-    sessions[token] = user
-    
-    # Update current connection mapping
-    sid = request.sid
-    online_users[sid] = email
-    user_sid_map[email] = sid
+    print(token)
+    print(f"from {email}: {otp}") #need to remove!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    print(password)
+
+    if token:
+        # Token-based authentication (auto-login)
+        if token in sessions and token_map.get(token) and token_map[token] > datetime.now():
+            user = sessions[token]
+            email = user['email']
+            # Update current connection mapping
+            sid = request.sid
+            online_users[sid] = email
+            user_sid_map[email] = sid
+            print(f"Auto-login successful: {email}")
+        else:
+            return {'success': False, 'error': 'Invalid or expired token'}
+        
+    else:        
+        # Credential-based authentication
+        user = find_user_by_email(email)
+        
+        # Validate credentials
+        if not user or user['password'] != password or not otp:
+            return {'success': False, 'error': 'Invalid credentials'}
+        
+        print(pending_otps.get(email)) # need to remove!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        
+        if otp != str(pending_otps.get(email)).strip():
+            return {'success': False, 'error': 'Invalid OTP'}
+        
+        # Generate access token
+        token, token_expiry_time = generate_token()
+        
+        sessions[token] = user
+        
+        # Update current connection mapping
+        sid = request.sid
+        online_users[sid] = email
+        user_sid_map[email] = sid
     
     # Send offline messages if any
     offline_msgs = [
