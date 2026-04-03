@@ -70,18 +70,15 @@ class SecureStorage:
     CURDIR = Path(__file__).absolute().parent.name
     STORE_DIR = Path(CURDIR).joinpath('save')
     CLIENT_FILE = STORE_DIR.joinpath('client.json')
-    
-    def __init__(self, email: str):
-        """Initiates a SecureStorage instance for managing local secured storage.
+        
+    def set_email(self, email: str):
+        """Sets the email to be managed.
 
         Parameters
         ----------
         email : str
-            User email.
-        password : str | None, optional
-            Password for the user account when registered, by default None if user simply loggin in.
+            Email to be managed.
         """
-        
         self.email = email
         self.user_msg_dir = ss.STORE_DIR.joinpath(email)
         self.create_if_not_exist(self.user_msg_dir, True)
@@ -95,6 +92,19 @@ class SecureStorage:
             True if initiated, else False.
         """
         return ss.CLIENT_FILE.exists()
+    
+    def initiate(self, rsa: RSA, token: str):
+        """Initiate the client info of the device.
+
+        Parameters
+        ----------
+        rsa : RSA
+            RSA instance containing device public and private key (identity key pair).
+        token : str
+            Available session token.
+        """
+        ss.create_if_not_exist(ss.CLIENT_FILE, False)
+        self.client_info = Client(rsa, token, self.email)
     
     def load_chat_msg(self, other_email: str) -> list[Message]:
         """Loads the messages of chat between self and other.
@@ -164,18 +174,7 @@ class SecureStorage:
         """Saves the current client_info, with updated session and corresponding email."""
         self.client_info.save(ss.CLIENT_FILE)
         
-    def initiate(self, rsa: RSA, token: str):
-        """Initiate the client info of the device.
 
-        Parameters
-        ----------
-        rsa : RSA
-            RSA instance containing device public and private key (identity key pair).
-        token : str
-            Available session token.
-        """
-        ss.create_if_not_exist(ss.CLIENT_FILE, False)
-        self.client_info = Client(rsa, token, self.email)
 
     def load_client(self):
         """Loads the client_info from storage."""
