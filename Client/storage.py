@@ -30,7 +30,9 @@ class Client:
         data = json.loads(path.read_text())
         
         token = data['session_token']
+        token = None if token == "" else token
         email = data['login_email']
+        email = None if email == "" else email
         # assume password is mac address
         password = str(uuid.getnode())
         
@@ -43,12 +45,13 @@ class Client:
             json.dumps({
                 "private_key": self.rsa.priv_key_enc_str(str(uuid.getnode())),
                 "public_key": self.rsa.pub_key_str(),
-                "session_token": self.token,  
-                "login_email": self.last_email 
+                "session_token": "" if self.token == None else self.token,
+                "login_email": "" if self.last_email == None else self.last_email
             })
         )
              
 class MsgStore:
+    """Format: {id: int, sent_from: 0/1, status: 0/1, deleteTime: str, content: str}"""
     def __init__(self, id: int, content: str, other_sent: bool, delivered: bool, delete_time: datetime | None): 
         self.id = id
         self.content = content
@@ -82,19 +85,9 @@ class SecureStorage:
         self.email = email
         self.user_msg_dir = ss.STORE_DIR.joinpath(email)
         self.create_if_not_exist(self.user_msg_dir, True)
-
-    def initiated(self) -> bool:
-        """Check if the device info initiated
-
-        Returns
-        -------
-        bool
-            True if initiated, else False.
-        """
-        return ss.CLIENT_FILE.exists()
     
-    def initiate(self, rsa: RSA, token: str):
-        """Initiate the client info of the device.
+    def initiate(self):
+        """Initiate the security storage, the client info of the device. 
 
         Parameters
         ----------
@@ -103,10 +96,15 @@ class SecureStorage:
         token : str
             Available session token.
         """
-        ss.create_if_not_exist(ss.CLIENT_FILE, False)
-        self.client_info = Client(rsa, token, self.email)
+            
+        if not ss.CLIENT_FILE.exists():
+            ss.create_if_not_exist(ss.CLIENT_FILE, False)
+            self.client_info = Client(RSA.create(), None, self.email)
+            self.save_client_info()
+        else:
+            self.load_client()
     
-    def load_chat_msg(self, other_email: str) -> list[Message]:
+    def load_chat_msg(self, other_email: str, page_num: int = 0) -> list[Message]:
         """Loads the messages of chat between self and other.
 
         Parameters
@@ -119,41 +117,45 @@ class SecureStorage:
         list[Message]
             A list of chat room messages.
         """
+        MSG_PER_PAGE = 10
         msg_path = self.user_msg_dir.joinpath(other_email)
         
         messages = []
         
+        import itertools
         with msg_path.open('r') as msg_f:
-            line = msg_f.readline()
-            items = line.split(' ', 4)
-            messages.append(MsgStore(
-                int(items[0]),
-                items[4], 
-                bool(int(items[1])), 
-                bool(int(items[2])),
-                datetime.strptime(items[3], "%d/%m/%Y-%H:%M:%S")
-            ).to_Message(self.email, other_email))
+            # reads only specific 10 messages.
+            for line in itertools.islice(msg_f, page_num * MSG_PER_PAGE, page_num * MSG_PER_PAGE + 1, None):
+                items = line.split(' ', 4)
+                messages.append(MsgStore(
+                    int(items[0]),
+                    items[4], 
+                    bool(int(items[1])), 
+                    bool(int(items[2])),
+                    datetime.strptime(items[3], "%d/%m/%Y-%H:%M:%S")
+                ).to_Message(self.email, other_email))
             
         return messages
     
-    def save_chat_msg(self, other_email: str, messages: list[Message]):
+    def write_chat_msg(self, other_email: str, messages: Message):
         """Saves the chat message into corresponding storage space.
 
         Parameters
         ----------
         other_email : str
             Email which is in conversation with self.
-        messages : list[Message]
-            A full list of the chat message.
+        messages : Message
+            Message will be prepend to the first line.
         """
         msg_path = self.user_msg_dir.joinpath(other_email)
         self.create_if_not_exist(msg_path, False)
         
-        store_msg = list(map(self.to_msg_store, messages))
+        store_msg = self.to_msg_store(messages)
 
-        with msg_path.open('w') as msg_f:
-            for m in store_msg:
-                msg_f.write(str(m) + '\n')
+        with msg_path.open('w+') as msg_f:
+            content = msg_f.read()
+            msg_f.seek(0, 0)
+            msg_f.write(str(store_msg) + '\n' + content)
     
     def remove_session(self):
         """Removes the current session"""
@@ -174,8 +176,6 @@ class SecureStorage:
         """Saves the current client_info, with updated session and corresponding email."""
         self.client_info.save(ss.CLIENT_FILE)
         
-
-
     def load_client(self):
         """Loads the client_info from storage."""
         self.client_info = Client.from_file(ss.CLIENT_FILE)
@@ -201,6 +201,24 @@ class SecureStorage:
         
         with key_path.open('w') as f:
             f.write(RSA.get_pub_str(pub_key))
+            
+    @staticmethod
+    def get_unread_count(other_email: str) -> int:
+        count_path = ss.STORE_DIR.joinpath(other_email, 'count')
+        
+        if not count_path.exists():
+            return 0
+        
+        with count_path.open('r') as f:
+            return int(f.read())
+        
+    @staticmethod
+    def save_unread_count(other_email: str, count: int):
+        count_path = ss.STORE_DIR.joinpath(other_email, 'count')
+        ss.create_if_not_exist(count_path, False)
+        
+        with count_path.open('w') as f:
+            f.write(str(count))
         
     @staticmethod
     def create_if_not_exist(filepath: Path, isDir: bool):
