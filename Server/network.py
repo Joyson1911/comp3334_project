@@ -137,13 +137,14 @@ def handle_login(data):
     password = data.get('password')
     otp = str(data.get('otp')).strip()
     
-    print(token)
+    print(f"token: {token}")
     print(f"from {email}: {otp}") #need to remove!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    print(password)
 
     if token:
         # Token-based authentication (auto-login)
-        if token in sessions and token_map.get(token) and token_map[token] > datetime.now():
+        print("have token 1")
+        if token in sessions and token_map[token] > datetime.now():
+            print("have token 2")
             user = sessions[token]
             email = user['email']
             # Update current connection mapping
@@ -151,6 +152,8 @@ def handle_login(data):
             online_users[sid] = email
             user_sid_map[email] = sid
             print(f"Auto-login successful: {email}")
+            
+            token_expiry_time = token_map[token]    
         else:
             return {'success': False, 'error': 'Invalid or expired token'}
         
@@ -161,8 +164,6 @@ def handle_login(data):
         # Validate credentials
         if not user or user['password'] != password or not otp:
             return {'success': False, 'error': 'Invalid credentials'}
-        
-        print(pending_otps.get(email)) # need to remove!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         
         if otp != str(pending_otps.get(email)).strip():
             return {'success': False, 'error': 'Invalid OTP'}
@@ -194,7 +195,11 @@ def handle_login(data):
     if offline_reqs:
         print(f"Sending {len(offline_reqs)} offline friend requests to {user['email']}")
         emit('offline_friend_requests', offline_reqs)
-        
+    
+    print(f"token: {token}")
+    
+    token_map[token] = token_expiry_time
+    
     return {
         'success': True, 
         'access_token': token,
