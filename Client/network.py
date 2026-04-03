@@ -160,7 +160,7 @@ class Client_API:
     #         'action': action
     #         }, callback=on_response)
     
-    # For testing purposes, return OTP directly !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    # For testing purposes, return OTP directly !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     def otp_request(self, email: str, action: str):
         try:
             # call 会直接等待服务器处理完并返回结果，不需要自己写 callback
@@ -230,7 +230,11 @@ class Client_API:
     #         'otp': otp
     #     }, callback=on_response)
     
-    def login(self, token: str | None = None, email: str | None = None, password: str | None = None, otp: int | None = None): #can use token instead of email/password/otp for auto-login 
+    def login(self, token: str | None = None, email: str | None = None, password: str | None = None, otp: int | None = None): 
+        """
+        Login to existing account
+        """
+        # Can use token instead of email/password/otp for auto-login 
         try:
             data = self.sio.call('login', {
                 'token': token,
@@ -280,6 +284,9 @@ class Client_API:
     #     }, callback=on_response)
         
     def send_friend_request(self, user_email: str):
+        """ 
+        Send friend request to another user
+        """
         try:
             data = self.sio.call('send_friend_request', {
                 'user_email': user_email,
@@ -309,7 +316,11 @@ class Client_API:
     #         'action': action
     #     }, callback=on_response)
         
-    def respond_to_friend_request(self, request_id, action):
+    def respond_to_friend_request(self, request_id: int, action: str):
+        """
+        Handle a pending friend request 
+        action: "accept" or "reject"
+        """
         try:
             data = self.sio.call('respond_to_friend_request', {
                 'request_id': request_id,
@@ -323,8 +334,31 @@ class Client_API:
         except Exception as e:
              return {"success": False, "error": f"Network error: {str(e)}"}
          
-    def unfriend(self, user_email: str):
-        ...
+    def unfriend_request(self, user_email: str, action: str):
+        """
+        Unfriend user 
+        action: "remove" or "block"
+        """
+        try:
+            data = self.sio.call('unfriend_request', {
+                'user_email': user_email,
+                'action': action
+            }, timeout=10)
+            
+            if action == "remove":
+                 if data and data.get('success'):
+                    return {"success": True}
+                 else:
+                    return {"success": False, "error": f"Failed to unfriend: {data.get('error')}"}
+            
+            if action == "block":
+                if data and data.get('success'):
+                    return {"success": True, "blocked_list": data.get('blocked_list', [])}
+                else:
+                    return {"success": False, "error": f"Failed to block user: {data.get('error')}"}
+                
+        except Exception as e:
+             return {"success": False, "error": f"Network error: {str(e)}"}
         
     # ============ Messaging Methods ============
     
@@ -351,6 +385,9 @@ class Client_API:
         # }, callback=on_response)
         
     def send_message(self, to_email: str, content: str):
+        """
+        Send a message to a friend
+        """
         try:
             data = self.sio.call('send_message', {
                 'to_email': to_email,

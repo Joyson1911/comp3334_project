@@ -14,6 +14,7 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 # In-memory storage (replace with database in production !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!)
 users = []           # {id, email, password, otp, created_at}
 friends = []         # {user_email, friend_email, created_at}
+blocked = []           # {user_email, blocked_email}
 friend_requests = [] # {id, from_email, to_email, status, created_at}        no id 
 messages = []        # {id, from_email, to_email, content, timestamp, delivered}
 
@@ -136,15 +137,12 @@ def handle_login(data):
     email = data.get('email')
     password = data.get('password')
     otp = str(data.get('otp')).strip()
-    
-    print(f"token: {token}")
+
     print(f"from {email}: {otp}") #need to remove!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     if token:
         # Token-based authentication (auto-login)
-        print("have token 1")
         if token in sessions and token_map[token] > datetime.now():
-            print("have token 2")
             user = sessions[token]
             email = user['email']
             # Update current connection mapping
@@ -205,7 +203,8 @@ def handle_login(data):
         'access_token': token,
         'user': {'email': email}, 
         'token_expiry_time': token_expiry_time.isoformat(),
-        'friends_list': [f['friend_email'] for f in friends if f['user_email'] == email]
+        'friends_list': [f['friend_email'] for f in friends if f['user_email'] == email],
+        'blocked_list': [b['blocked_email'] for b in blocked if b['user_email'] == email]
     }
 
 
@@ -336,6 +335,49 @@ def handle_respond_to_friend_request(data):
         return {'success': False, 'error': 'Invalid action'}
     
     return {'success': True, 'message': f'Request {action}ed successfully'}
+
+@socketio.on('unfriend_request')
+def handle_unfriend_request(data):
+    """
+    Handle unfriending a user
+    Expected data: {friend_email, action}
+    """
+    sid = request.sid
+    if sid not in online_users:
+        return {'success': False, 'error': 'Not authenticated'}
+    
+    user_email = online_users[sid]
+    friend_email = data.get('friend_email')
+    action = data.get('action')
+    
+    if not friend_email:
+        return {'success': False, 'error': 'Friend email required'}
+    
+    if friend_email == user_email:
+        return {'success': False, 'error': 'Cannot unfriend yourself'}
+    
+    if action == "remove":
+        # Check if they are actually friends
+        if not any(f for f in friends if f['user_email'] == user_email and f['friend_email'] == friend_email):
+            return {'success': False, 'error': 'Not friends'}
+    
+        # Find and remove the friendship
+        friends.remove((f for f in friends if f['user_email'] == user_email and f['friend_email'] == friend_email))
+        friends.remove((f for f in friends if f['user_email'] == friend_email and f['friend_email'] == user_email))
+    
+    if action == "block":
+        if any(f for f in friends if f['user_email'] == user_email and f['friend_email'] == friend_email):
+            # Find and remove the friendship
+            friends.remove((f for f in friends if f['user_email'] == user_email and f['friend_email'] == friend_email))
+            friends.remove((f for f in friends if f['user_email'] == friend_email and f['friend_email'] == user_email))
+            
+        blocked.append({
+            'user_email': user_email,
+            'blocked_email': friend_email,
+        })
+        return {'success': True, 'message': 'Friend removed successfully', 'blocked_list': [b['blocked_email'] for b in blocked if b['user_email'] == user_email]}
+    
+    return {'success': True, 'message': 'Friend removed successfully'}
 
 # ============ Messaging Events ============
 
