@@ -8,28 +8,41 @@ from UserInterface import UI
 from storage import SecureStorage
 from session import Account, Recipient
 from datetime import datetime, timedelta
-
 from network import Client_API
-
-api = Client_API("http://localhost:3000")
-api.connect()
+from crypto import RSA
 
 def main(stdscr):
 
     ui = UI(stdscr)
     api.connect()
     while True:
-        
-        #Load login page
-        userEmail = loginPage(ui)
-        ui.clearMsgWindow()
-        ui.clearFeedback()
 
+        #Establish connection with server    
+        api = Client_API("http://localhost:3000")
+        api.connect()
+
+        #Load login page
+        storage = SecureStorage()
+        storage.initiate()
+
+        
+        try: 
+            token = storage.client_info.token
+            #...
+
+        except Exception as e:
+
+            userEmail = loginPage(ui, api)
+        finally:
+            #read frd list
+            ...
+        #Check buffer
         receiveBuffer = []
         stop_event = threading.Event()
         bufferReader = threading.Thread(target=messageReader, args=(ui, receiveBuffer))
         bufferReader.start()
-        #storage = SecureStorage(userEmail)
+
+        #Account
         friends = []
         unread = []
         blacklist = []
@@ -38,8 +51,7 @@ def main(stdscr):
         sent = []
         received = []
 
-
-        account = Account(userEmail, publicKey, privateKey, friends, unread, blacklist, sent, received)
+        account = Account(userEmail, friends, unread, blacklist, sent, received)
         #Load contact page
         pageInfo = {"nextPage": "contact"}
         while True:
@@ -68,7 +80,7 @@ def main(stdscr):
                 break
 
 #The login page
-def loginPage(ui: UI):
+def loginPage(ui: UI, api: Client_API):
     ui.setTitle("Welcome to happy chat!")
     ui.drawMenu("Menu: 1. Log in | 2. Register | 3. Exit program")
     registerLockExpiry = datetime.now()
@@ -76,26 +88,24 @@ def loginPage(ui: UI):
         userInput = ui.getInteger("Enter: ", 4)
         if userInput == 1:
             email = ui.getString("Email: ")
-            
-            #ask server to send OTP
+            #Request OTP from server
             otp = api.otp_request(email, "login")
-            api.otp_request(email, "login")
-            if False: #if email is unregistered
-                ui.showFeedback("Login failed. Please enter a valid and registered email.")
+            if otp == None:
+                ui.showFeedback("Server failed to sent verification code. Please retry.")
                 continue
             ui.showFeedback("Verification code sent to your email.")
+            #Read password and verification code
             password = ui.getPassword("Password: ")
             verCode = ui.getString("Verification Code: ")
 
-            login_result = api.login(email, password, verCode)
-            if not login_result.get("success"): #if password or verCode is incorrect
-                ui.showFeedback(f"Login failed. {login_result.get('error')}")
-
-            api.login(email, password, verCode)
-            if False: #if password or verCode is incorrect
-                ui.showFeedback("Login failed. Verification code incorrect.")
+            if verCode != otp:
+                ui.showFeedback("Login failed. Incorrect verification code.")
                 continue
-            #Read local storage and server message
+            login_result = api.login(email, password, verCode)
+            if not register_result.get("success"):
+                ui.showFeedback(f"Login failed. {login_result.get("error")}")
+                continue
+            
             return email
 
         elif userInput == 2:
@@ -103,18 +113,19 @@ def loginPage(ui: UI):
                 ui.showFeedback(f"Registration locked. Please try again in {(registerLockExpiry - datetime.now()).total_seconds()} seconds.") 
                 continue
             email = ui.getString("Email: ")
+            #Request otp from server
             otp = api.otp_request(email, "register")
-            
-            # if False: # if email is registered
-            otp = api.otp_request(email, "register")
-            if otp == None:# if register verified
-                ui.showFeedback("Register failed. Please provide an unregistered email.")
+            if otp == None:
+                ui.showFeedback("Server failed to sent verification code. Please retry.")
                 registerLockExpiry = datetime.now() + timedelta(seconds=60)
                 continue
-            
             ui.showFeedback("Verification code sent to your email.")
+
             verCode = ui.getString("Verification Code: ")
-            
+            if verCode != otp:
+                ui.showFeedback("Incorrect verification code.")
+                continue
+            ui.showFeedback("Email verified.")
             while True:
                 password1 = ui.getPassword("Set password: ")
                 password2 = ui.getPassword("Enter password again: ")
@@ -124,21 +135,17 @@ def loginPage(ui: UI):
                 ui.showFeedback("Passwords do not match. Please try again.")
                 
             register_result = api.register(email, password1, verCode)
-            
             if not register_result.get("success"):
                 ui.showFeedback(f"Register failed. {register_result.get('error')}")
                 registerLockExpiry = datetime.now() + timedelta(seconds=60)
                 continue
-
-            #Send to server
-            api.register(email, password1, otp)
             ui.showFeedback("Account registered successfully.")
             registerLockExpiry = datetime.now() + timedelta(seconds=60)
         elif userInput == 3:
             sys.exit(0)
         
 
-def contactPage(ui: UI, account: Account):
+def contactPage(ui: UI, account: Account, storage: SecureStorage):
     ui.setTitle("Contacts:")
     ui.drawMenu("Menu: 1. Enter chatroom | 2. Manage contacts | 3. Log out | 4. Exit program")
     ui.displayFriend(account.friendlist["friends"], account.friendlist["unread"])
@@ -162,23 +169,23 @@ def contactPage(ui: UI, account: Account):
 def getMessages(recipient: str, pageNum: int):
     ...    
 
-def chatroomPage(ui: UI, account: Account, recipientEmail: str, storage):
-    recipientPublicKey = ""
-    macAddress = ""
-    recipient = Recipient(recipientEmail, recipientPublicKey)
+def chatroomPage(ui: UI, account: Account, recipientEmail: str, storage: SecureStorage):
+    #
+    recipientKey =  storage.get_public_key(recipientEmail)
     page = 0
+    messageBuffer = storage.load_chat_msg(recipientEmail, page)
     lifetime = -1
     #update message buffer
 
     #Set thread for checking message expiry
     stop_event = threading.Event()
-    expiryChecker = threading.Thread(target=checkIfExpired, args=(ui, recipient.messages))
+    expiryChecker = threading.Thread(target=checkIfExpired, args=(ui, messageBuffer))
     expiryChecker.start()
 
     ui.drawMenu("Menu: 1. Send message | 2. Set message lifetime | 3. Remove message lifetime  | 4. Last page | 5. Next page | 6. Return to contacts")
     while True:
-        ui.setTitle(f"Chatroom with {recipientEmail}: Page {page}")
-        ui.displayMessage(recipient.messages)
+        ui.setTitle(f"Chatroom with {recipientEmail}: Page {page+1}")
+        ui.displayMessage(messageBuffer)
         userInput = ui.getInteger("Enter: ", 7)
         if userInput == 1:
             content = ui.getString("Enter message: ")
@@ -288,7 +295,7 @@ def messageReader(ui: UI, receiveBuffer):
         while len(receiveBuffer)>1:
             ui.setTitle(receiveBuffer[0])
             receiveBuffer.pop(0)
-    
+
 
 if __name__ == "__main__":
     curses.wrapper(main)

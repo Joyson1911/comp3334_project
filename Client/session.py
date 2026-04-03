@@ -1,5 +1,6 @@
 import uuid
 from typing import List
+from storage import SecureStorage
 
 def getMacAddress():
         mac = uuid.getnode()
@@ -8,14 +9,25 @@ def getMacAddress():
 
 class Account:
     
-    def __init__(self, user: str, publicKey: str, privateKey: str, friends: List[str], unread: list[int], blacklist: List[str], sent: List[str], received: List[str]):
+    def __init__(self, user: str, friends: List[str], unread: list[int], blacklist: List[str], sent: List[str], received: List[str]):
         self.locked = False
         self.user = user
         self.friendlist = {"friends": friends, "unread": unread}
         self.blacklist = blacklist
-        self.request = {"sent": sent, "received": received}
-        self.publicKey = publicKey
-        self.privateKey = privateKey    
+        self.request = {"sent": sent, "received": received} 
+
+    def buildAccount(email: str, storage: SecureStorage):
+        friends = []
+        unread = []
+        blacklist = []
+        sent = []
+        received = []
+
+        for frd in friends:
+            unread.append(storage.get_unread_count(frd))
+            
+        account = Account()
+        ...
 
     def lock(self):
          while self.locked:
