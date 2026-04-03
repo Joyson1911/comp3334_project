@@ -9,12 +9,13 @@ def getMacAddress():
 
 class Account:
     
-    def __init__(self, user: str, friends: List[str], unread: list[int], blacklist: List[str], sent: List[str], received: List[str]):
+    def __init__(self, user: str, friends: List[str], unread: list[int], blacklist: List[str], sent: List[str], received: List[str], token: str):
         self.locked = False
         self.user = user
         self.friendlist = {"friends": friends, "unread": unread}
         self.blacklist = blacklist
         self.request = {"sent": sent, "received": received} 
+        self.token = token
 
     def buildAccount(email: str, storage: SecureStorage):
         friends = []
@@ -25,7 +26,7 @@ class Account:
 
         for frd in friends:
             unread.append(storage.get_unread_count(frd))
-            
+
         account = Account()
         ...
 

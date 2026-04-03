@@ -25,10 +25,9 @@ def main(stdscr):
         storage = SecureStorage()
         storage.initiate()
 
-        
         try: 
             token = storage.client_info.token
-            #...
+            #try auto login
 
         except Exception as e:
 
@@ -69,15 +68,29 @@ def main(stdscr):
                 pageInfo = requestPage(ui, account)
 
             elif pageInfo["nextPage"]=="logout":
-                account = None
+                ui.showFeedback("Logging out...")
+                #End thread
                 stop_event.set()
                 messageReader.join()
+
+                for i in range(len(account.friendlist["friends"])):
+                    storage.set_unread_count(account.friendlist["friends"][i], account.friendlist["unread"][i])
+                account = None
+
+                api.logout()
                 break
             elif pageInfo["nextPage"]=="exit":
-                account = None
+                ui.showFeedback("Cleaning resource...")
+                #End thread
                 stop_event.set()
                 messageReader.join()
-                break
+
+                for i in range(len(account.friendlist["friends"])):
+                    storage.set_unread_count(account.friendlist["friends"][i], account.friendlist["unread"][i])
+                account = None
+                
+                api.disconnect()
+                sys.exit(0)
 
 #The login page
 def loginPage(ui: UI, api: Client_API):
@@ -102,10 +115,11 @@ def loginPage(ui: UI, api: Client_API):
                 ui.showFeedback("Login failed. Incorrect verification code.")
                 continue
             login_result = api.login(email, password, verCode)
-            if not register_result.get("success"):
+            if not login_result.get("success"):
                 ui.showFeedback(f"Login failed. {login_result.get("error")}")
                 continue
-            
+            friends = login_result.get("friends_list")
+            token = login_result.get("token")
             return email
 
         elif userInput == 2:
@@ -170,43 +184,46 @@ def getMessages(recipient: str, pageNum: int):
     ...    
 
 def chatroomPage(ui: UI, account: Account, recipientEmail: str, storage: SecureStorage):
-    #
+    account.friendlist["unread"][account.friendlist["friends"].index(recipientEmail)] = 0
     recipientKey =  storage.get_public_key(recipientEmail)
-    page = 0
-    messageBuffer = storage.load_chat_msg(recipientEmail, page)
+    page = [1]
+    messages = storage.load_chat_msg(recipientEmail)
     lifetime = -1
-    #update message buffer
 
     #Set thread for checking message expiry
     stop_event = threading.Event()
-    expiryChecker = threading.Thread(target=checkIfExpired, args=(ui, messageBuffer))
+    expiryChecker = threading.Thread(target=checkIfExpired, args=(ui, messages, page))
     expiryChecker.start()
 
     ui.drawMenu("Menu: 1. Send message | 2. Set message lifetime | 3. Remove message lifetime  | 4. Last page | 5. Next page | 6. Return to contacts")
+    ui.displayMessage.messages[-page*10-1:-(page-1)*10-1]
     while True:
         ui.setTitle(f"Chatroom with {recipientEmail}: Page {page+1}")
-        ui.displayMessage(messageBuffer)
         userInput = ui.getInteger("Enter: ", 7)
         if userInput == 1:
             content = ui.getString("Enter message: ")
             msg = Message(content, account.user, recipientEmail, lifetime)
-            #Send message to server
-            #Update message buffer
+            #Ask server for ID
+            messages.append(msg)
+            ui.displayMessage(messages[page*10:page*10+10])
         elif userInput == 2:
             ui.showFeedback("Units of message lifetime are s(second), m(minute) and h(hour). Min: 30s, Max: 24h")
             life = ui.getTime("Enter message lifetime: ")
         elif userInput == 3:
             lifetime = -1
         elif userInput == 4:
-            ...
+            page[0]-=1
+            ui.displayMessage(messages[page*10:page*10+10])
         elif userInput == 5:
-            ...
+            page[0]+=1
+            ui.displayMessage(messages[page*10:page*10+10])
         elif userInput == 6:
             ret = {"nextPage": "contact"}
             break
 
     stop_event.set()
     expiryChecker.join()
+    storage.write_chat_msg(recipientEmail, messages)
     return ret
 
 def relationshipPage(ui: UI, account: Account):
@@ -281,7 +298,7 @@ def requestPage(ui: UI, account: Account):
         elif userInput == 4:
             return {"nextPage": "relationship"}
 
-def checkIfExpired(ui: UI, messages):
+def checkIfExpired(ui: UI, messages, page):
         while not stop_event.is_set():
             for i in range(len(messages)-1, -1, -1):
                 if messages[i].isExpired():
