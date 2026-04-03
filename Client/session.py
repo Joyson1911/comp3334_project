@@ -9,12 +9,21 @@ def getMacAddress():
 class Account:
     
     def __init__(self, user: str, publicKey: str, privateKey: str, friends: List[str], unread: list[int], blacklist: List[str], sent: List[str], received: List[str]):
+        self.locked = False
         self.user = user
         self.friendlist = {"friends": friends, "unread": unread}
         self.blacklist = blacklist
         self.request = {"sent": sent, "received": received}
         self.publicKey = publicKey
         self.privateKey = privateKey    
+
+    def lock(self):
+         while self.locked:
+            pass
+         self.locked = True
+
+    def unlock(self):
+        self.locked = False
 
     def addFriend(self, index):
         self.friendlist["friends"].append(self.request["received"][index])

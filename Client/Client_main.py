@@ -17,13 +17,18 @@ api.connect()
 def main(stdscr):
 
     ui = UI(stdscr)
+    api.connect()
     while True:
-
+        
         #Load login page
         userEmail = loginPage(ui)
         ui.clearMsgWindow()
         ui.clearFeedback()
 
+        receiveBuffer = []
+        stop_event = threading.Event()
+        bufferReader = threading.Thread(target=messageReader, args=(ui, receiveBuffer))
+        bufferReader.start()
         #storage = SecureStorage(userEmail)
         friends = []
         unread = []
@@ -32,6 +37,7 @@ def main(stdscr):
         privateKey = ""
         sent = []
         received = []
+
 
         account = Account(userEmail, publicKey, privateKey, friends, unread, blacklist, sent, received)
         #Load contact page
@@ -50,8 +56,15 @@ def main(stdscr):
             elif pageInfo["nextPage"]=="request":
                 pageInfo = requestPage(ui, account)
 
-            elif pageInfo["nextPage"]=="login":
+            elif pageInfo["nextPage"]=="logout":
                 account = None
+                stop_event.set()
+                messageReader.join()
+                break
+            elif pageInfo["nextPage"]=="exit":
+                account = None
+                stop_event.set()
+                messageReader.join()
                 break
 
 #The login page
@@ -66,17 +79,21 @@ def loginPage(ui: UI):
             
             #ask server to send OTP
             otp = api.otp_request(email, "login")
-            
-            if otp is None: #if email is unregistered
+            api.otp_request(email, "login")
+            if False: #if email is unregistered
                 ui.showFeedback("Login failed. Please enter a valid and registered email.")
                 continue
             ui.showFeedback("Verification code sent to your email.")
             password = ui.getPassword("Password: ")
             verCode = ui.getString("Verification Code: ")
-            
+
             login_result = api.login(email, password, verCode)
             if not login_result.get("success"): #if password or verCode is incorrect
                 ui.showFeedback(f"Login failed. {login_result.get('error')}")
+
+            api.login(email, password, verCode)
+            if False: #if password or verCode is incorrect
+                ui.showFeedback("Login failed. Verification code incorrect.")
                 continue
             #Read local storage and server message
             return email
@@ -86,11 +103,11 @@ def loginPage(ui: UI):
                 ui.showFeedback(f"Registration locked. Please try again in {(registerLockExpiry - datetime.now()).total_seconds()} seconds.") 
                 continue
             email = ui.getString("Email: ")
-            
             otp = api.otp_request(email, "register")
             
-            if otp is None:
             # if False: # if email is registered
+            otp = api.otp_request(email, "register")
+            if otp == None:# if register verified
                 ui.showFeedback("Register failed. Please provide an unregistered email.")
                 registerLockExpiry = datetime.now() + timedelta(seconds=60)
                 continue
@@ -114,6 +131,7 @@ def loginPage(ui: UI):
                 continue
 
             #Send to server
+            api.register(email, password1, otp)
             ui.showFeedback("Account registered successfully.")
             registerLockExpiry = datetime.now() + timedelta(seconds=60)
         elif userInput == 3:
@@ -136,10 +154,10 @@ def contactPage(ui: UI, account: Account):
         elif userInput == 2:
             return {"nextPage":"relationship"}
         elif userInput == 3:
-            return {"nextPage":"login"}
+            return {"nextPage":"logout"}
         elif userInput == 4:
             #Exchange token and 
-            sys.exit(0)
+            return {"nextPage":"exit"}
 
 def getMessages(recipient: str, pageNum: int):
     ...    
@@ -263,7 +281,14 @@ def checkIfExpired(ui: UI, messages):
                     del messages[i]
                     ui.displayMessages(messages)
             time.sleep(1)
-                
+
+def messageReader(ui: UI, receiveBuffer):
+    #constantly checking some message buffer, or triggered by a message arrival event
+    while not stop_event.is_set():
+        while len(receiveBuffer)>1:
+            ui.setTitle(receiveBuffer[0])
+            receiveBuffer.pop(0)
+    
 
 if __name__ == "__main__":
     curses.wrapper(main)

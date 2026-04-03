@@ -8,6 +8,8 @@ class UI:
         curses.curs_set(1)  #Show cursor
         curses.echo()       #Show user typing: on
 
+        self.locked = False
+
         self.h, self.w = stdscr.getmaxyx() #Get height(row) and width(col) of terminal
         """
         Title window: Responsible for displaying page title, one line only
@@ -30,6 +32,14 @@ class UI:
         # Divider line
         self.input_win.hline(0, 0, curses.ACS_HLINE, 10)
         self.input_win.refresh()
+
+    def lock(self):
+        while self.locked:
+            pass
+        self.locked = True
+
+    def unlock(self):
+        self.locked = False
 
     def displayMessage(self, messages):
         #Display messages in the message window
