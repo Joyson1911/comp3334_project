@@ -4,6 +4,7 @@
 from datetime import datetime
 import json
 from messaging import Message
+from typing import Literal
 # from os import urandom, remove, mkdir
 from os.path import dirname
 from pathlib import Path
@@ -26,7 +27,7 @@ class Client:
         self.last_email = email
         
     @classmethod
-    def from_file(cls, path: Path) -> Client:
+    def from_file(cls, path: Path):
         data = json.loads(path.read_text())
         
         token = data['session_token']
@@ -60,18 +61,18 @@ class MsgStore:
         self.delete_time = delete_time
         
     def __str__(self) -> str:
-        return f'{self.id} {self.other_sent} '
+        return f'{self.id} {self.other_sent} {self.delivered} {'-' if self.delete_time == None else self.delete_time.strftime("%d/%m/%Y-%H:%M:%S")} {self.content + '\n'}'
     
     @classmethod
-    def from_Message(cls, msg: Message, self_email: str) -> MsgStore:
+    def from_Message(cls, msg: Message, self_email: str):
         return cls(msg.id, msg.message, msg.sender != self_email, msg.delivered, msg.delete_time)
     
     def to_Message(self, self_email: str, other_email: str) -> Message:
         return Message(self.id, self.content, self_email, other_email, bool(self.delivered), self.delete_time)
         
 class SecureStorage:
-    CURDIR = Path(__file__).absolute().parent.name
-    STORE_DIR = Path(CURDIR).joinpath('save')
+    CURDIR = Path(__file__).absolute().parent
+    STORE_DIR = CURDIR.joinpath('save')
     CLIENT_FILE = STORE_DIR.joinpath('client.json')
         
     def set_email(self, email: str):
@@ -98,8 +99,9 @@ class SecureStorage:
         """
             
         if not ss.CLIENT_FILE.exists():
+            ss.create_if_not_exist(self.STORE_DIR, True)
             ss.create_if_not_exist(ss.CLIENT_FILE, False)
-            self.client_info = Client(RSA.create(), None, self.email)
+            self.client_info = Client(RSA.create(), None, None)
             self.save_client_info()
         else:
             self._load_client()
@@ -110,16 +112,15 @@ class SecureStorage:
         if len(msg_path) <= 0: return 0
         
         msg_path = msg_path[0]
-        return int(msg_path.name.split('_')[-1])
+        return int(msg_path.stem.split('_')[-1])
     
-    def set_unread_count(self, other_email: str, count: str):
+    def set_unread_count(self, other_email: str, count: int):
         msg_path = list(self.user_msg_dir.glob(f'{other_email}_*'))
         
         if len(msg_path) <= 0:
             self.user_msg_dir.joinpath(f'{other_email}_{count}.txt').touch()
-            
-        msg_path = list(self.user_msg_dir.glob(f'{other_email}_*'))
-        msg_path[0].rename(f'{other_email}_{count}.txt')
+        else:
+            msg_path[0].rename(self.user_msg_dir.joinpath(f'{other_email}_{count}.txt'))
         
     def load_chat_msg(self, other_email: str) -> list[Message]:
         """Loads all the messages of chat between self and other, returns empty list if no messages in the conversation.
@@ -134,10 +135,9 @@ class SecureStorage:
         list[Message]
             A list of all chat room messages.
         """
-        MSG_PER_PAGE = 10
-        msg_path = list(self.user_msg_dir.glob(f'other_email_*'))
+        msg_path = list(self.user_msg_dir.glob(f'{other_email}_*'))
         
-        if not len(msg_path) <= 0: return []
+        if len(msg_path) <= 0: return []
         
         messages = []
         with msg_path[0].open('r') as msg_f:
@@ -146,14 +146,14 @@ class SecureStorage:
                 items = line.split(' ', 4)
                 messages.append(MsgStore(
                     int(items[0]),
-                    items[4], 
+                    items[4].strip('\n'), 
                     bool(int(items[1])), 
                     bool(int(items[2])),
-                    datetime.strptime(items[3], "%d/%m/%Y-%H:%M:%S")
+                    None if items[3] == '-' else datetime.strptime(items[3], "%d/%m/%Y-%H:%M:%S")
                 ).to_Message(self.email, other_email))
         return messages
     
-    def write_chat_msg(self, other_email: str, messages: list[Message]):
+    def write_chat_msg(self, other_email: str, messages: list[Message], mode: Literal['a', 'w'] = 'w'):
         """Saves the chat message into corresponding storage space.
 
         Parameters
@@ -170,9 +170,12 @@ class SecureStorage:
         
         store_msg = list(map(lambda m: str(self._to_msg_store(m)), messages))
 
-        with msg_path[0].open('w+') as msg_f:
+        with msg_path[0].open(f'{mode}') as msg_f:
             msg_f.writelines(store_msg)
-    
+            
+    def append_msgs(self, email: str, msg_list: list[Message]):
+        self.write_chat_msg(email, msg_list, 'a')
+            
     def remove_session(self):
         """Removes the current session"""
         self.client_info.token = None
@@ -213,12 +216,12 @@ class SecureStorage:
             return RSA.read_pub_key(f.read())
         
     @staticmethod
-    def save_public_key(other_email: str, pub_key: RSAPublicKey):
+    def save_public_key(other_email: str, pub_key: str):
         key_path = ss.STORE_DIR.joinpath(other_email, 'k.pem')
         ss.create_if_not_exist(key_path, False)
         
         with key_path.open('w') as f:
-            f.write(RSA.get_pub_str(pub_key))
+            f.write(pub_key)
         
     @staticmethod
     def create_if_not_exist(filepath: Path, isDir: bool):
@@ -235,6 +238,7 @@ class SecureStorage:
         if isDir:
             filepath.mkdir(exist_ok=True, parents=True)
         else:
+            filepath.parent.mkdir(exist_ok=True, parents=True)
             filepath.touch(exist_ok=True)
             
 ss = SecureStorage        
