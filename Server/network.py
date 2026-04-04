@@ -277,6 +277,7 @@ def handle_send_friend_request(data):
         'status': 'pending',
     }
     friend_requests.append(new_request)
+    print("Request sent")
     
     # Real-time notification if recipient is online
     if friend_email in user_sid_map:

@@ -24,7 +24,7 @@ class Client_API:
         self.user_email = None
         self.is_authenticated = False
         self.is_connected = False
-        self.receiveBuffer = []
+        self.receiveBuffer = None
         
         # Callback functions for application layer
         self.on_message = lambda msg: self.receiveBuffer.append({'type': 'message', 'content': Message()})              # Called when new message received

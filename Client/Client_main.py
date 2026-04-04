@@ -15,7 +15,6 @@ from typing import List
 def main(stdscr):
 
     ui = UI(stdscr)
-    api.connect()
     while True:
 
         #Establish connection with server    
@@ -46,10 +45,10 @@ def main(stdscr):
                 pageInfo = chatroomPage(ui, account, pageInfo["recipent"], storage)
 
             elif pageInfo["currentPage"]=="relationship":
-                pageInfo = relationshipPage(ui, account)
+                pageInfo = relationshipPage(ui, account, api)
 
             elif pageInfo["currentPage"]=="request":
-                pageInfo = requestPage(ui, account)
+                pageInfo = requestPage(ui, account, api)
 
             elif pageInfo["currentPage"]=="logout":
                 ui.showFeedback("Logging out...")
@@ -67,7 +66,7 @@ def main(stdscr):
                 ui.showFeedback("Cleaning resource...")
                 #End thread
                 stop_event.set()
-                messageReader.join()
+                bufferReader.join()
 
                 for i in range(len(account.friendlist["friends"])):
                     storage.set_unread_count(account.friendlist["friends"][i], account.friendlist["unread"][i])
@@ -86,19 +85,19 @@ def loginPage(ui: UI, api: Client_API, storage: SecureStorage):
         if userInput == 1:
             email = ui.getString("Email: ")
             #Request OTP from server
-            otp = api.otp_request(email, "login")
-            if otp == None:
+            otp_result = api.otp_request(email, "login")
+            if not otp_result.get("success"):
                 ui.showFeedback("Server failed to sent verification code. Please retry.")
                 continue
+            otp = str(otp_result.get("otp"))
             ui.showFeedback("Verification code sent to your email.")
             #Read password and verification code
-            password = ui.getPassword("Password: ")
             verCode = ui.getString("Verification Code: ")
-
+            password = ui.getPassword("Password: ")
             if verCode != otp:
                 ui.showFeedback("Login failed. Incorrect verification code.")
                 continue
-            login_result = api.login(email, password, verCode)
+            login_result = api.login(None, email, password, verCode)
             if not login_result.get("success"):
                 ui.showFeedback(f"Login failed. {login_result.get("error")}")
                 continue
@@ -106,7 +105,7 @@ def loginPage(ui: UI, api: Client_API, storage: SecureStorage):
             #Build user session 
             token = login_result.get("token")
             friends = login_result.get("friends_list")
-            blacklist = login_result.get("blacklist")
+            blacklist = login_result.get("block_list")
             unread = []
             for frd in friends:
                 unread.append(storage.get_unread_count(frd))
@@ -120,13 +119,12 @@ def loginPage(ui: UI, api: Client_API, storage: SecureStorage):
                 continue
             email = ui.getString("Email: ")
             #Request otp from server
-            otp = api.otp_request(email, "register")
-            if otp == None:
+            otp_result = api.otp_request(email, "register")
+            if not otp_result.get("success"):
                 ui.showFeedback("Server failed to sent verification code. Please retry.")
-                registerLockExpiry = datetime.now() + timedelta(seconds=60)
                 continue
+            otp = str(otp_result.get("otp"))
             ui.showFeedback("Verification code sent to your email.")
-
             verCode = ui.getString("Verification Code: ")
             if verCode != otp:
                 ui.showFeedback("Incorrect verification code.")
@@ -157,7 +155,7 @@ def login(ui: UI, api: Client_API, storage: SecureStorage):
                 raise Exception("Auto login failed.")
             #try auto login
             
-            login_result = api.login(token=token)
+            login_result = api.login(token, None, None, None)
             if  login_result.get("success")==False:
                 raise Exception("Auto login failed.")
             userEmail = storage.client_info.last_email
@@ -194,14 +192,22 @@ def contactPage(ui: UI, account: Account, storage: SecureStorage):
             return {"currentPage":"logout"}
         elif userInput == 4:
             #set token
+            userInput = ui.getInteger("Are you sure to exit without logging out? Yes(1)/No(2): ", 3)
+            if userInput == 2:
+                continue
             return {"currentPage":"exit"}
 
-def getMessages(recipient: str, pageNum: int):
-    ...    
-
-def chatroomPage(ui: UI, account: Account, recipientEmail: str, storage: SecureStorage, conversation: dict):
-    account.friendlist["unread"][account.friendlist["friends"].index(recipientEmail)] = 0
+def chatroomPage(ui: UI, account: Account, recipientEmail: str, storage: SecureStorage, conversation: dict, api: Client_API):
     recipientKey =  storage.get_public_key(recipientEmail)
+    latestKey = api.get_public_key(recipientEmail)
+    if latestKey!=recipientKey:
+        ui.showFeedback("WARNING: This user has switched to a new device. Are you sure to continue?")
+        userInput = ui.getInteger("Continue with warning(1), Leave the chatroom(2): ", 3)
+        if userInput == 2:
+            return {"currentPage": "contact"}
+        
+    #storage.save_public_key(recipientEmail, latestKey)
+    account.friendlist["unread"][account.friendlist["friends"].index(recipientEmail)] = 0
     page = [1]
     messages = storage.load_chat_msg(recipientEmail)
     lifetime = -1
@@ -245,7 +251,7 @@ def chatroomPage(ui: UI, account: Account, recipientEmail: str, storage: SecureS
     storage.write_chat_msg(recipientEmail, messages)
     return ret
 
-def relationshipPage(ui: UI, account: Account):
+def relationshipPage(ui: UI, account: Account, api: Client_API):
     ui.setTitle("Manage your contacts: ")
     ui.displayFriend(account.friendlist["friends"], account.friendlist["unread"])
     ui.drawMenu("Menu: 1. Send friend request | 2. Unfriend user | 3. Block user | 4. Check request | 5. Return to contacts")
@@ -253,14 +259,11 @@ def relationshipPage(ui: UI, account: Account):
         userInput = ui.getInteger("Enter: ", 6)
         if userInput == 1:
             userInput = ui.getString("Enter user email: ")
-            #Ask server
-            
             send_result = api.send_friend_request(userInput)
             
             if not send_result["success"]: #if user does not exist
-                ui.showFeedback("User does not exist.")
+                ui.showFeedback(send_result.get("error"))
                 continue
-            #Send request
             ui.showFeedback(f"Friend request sent to {userInput}")
         elif userInput == 2:
             if len(account.friendlist["friends"])<1:
@@ -270,16 +273,19 @@ def relationshipPage(ui: UI, account: Account):
             if userInput not in account.friendlist["friends"]: # user does not exist in friend list
                 ui.showFeedback("The user is not in your friend list.")
                 continue
-            #send server unfrd
+            unfrd_result = api.unfriend_request(userInput, "remove")
+            if not unfrd_result.get("success"):
+                ui.showFeedback(f"Failed to unfriend. {unfrd_result.get("error")}")
+                continue
             account.friendlist["friends"].remove(userInput)
             ui.showFeedback(f"Removed user: {userInput} from your friends list.")
         elif userInput == 3:
             userInput = ui.getString("Enter user email: ")
-            #Ask server
-            if False: # user does not exist
-                ui.showFeedback("User does not exist.")
+
+            block_result = api.unfriend_request(userInput, "block")
+            if not block_result.get("success"): # user does not exist
+                ui.showFeedback(block_result.get("error"))
                 continue
-            #send server block
             account.blacklistUser(userInput)
             ui.showFeedback(f"Blocked user: {userInput}.")
         elif userInput == 4:
@@ -287,7 +293,7 @@ def relationshipPage(ui: UI, account: Account):
         elif userInput == 5:
             return  {"currentPage": "contact"}
 
-def requestPage(ui: UI, account: Account):
+def requestPage(ui: UI, account: Account, api: Client_API):
     ui.setTitle("Pending requests:")
     ui.displayRequest(account.request["sent"], account.request["received"])
     ui.drawMenu("Menu: 1. Accept request | 2. Decline request | 3. Cancel request | 4. Return to manage page")
