@@ -31,9 +31,8 @@ def main(stdscr):
         pageInfo = {"currentPage": "contact"}
         conversation = {"currentChat": None, "messageList": None, "page": None}
         #Check buffer
-        api.receiveBuffer = account.receiveBuffer
         stop_event = threading.Event()
-        bufferReader = threading.Thread(target=messageReader, args=(ui, account.receiveBuffer, pageInfo))
+        bufferReader = threading.Thread(target=messageReader, args=(ui, api.receiveBuffer, pageInfo, account, conversation, stop_event))
         bufferReader.start()
 
         while True:
@@ -214,7 +213,7 @@ def chatroomPage(ui: UI, account: Account, recipientEmail: str, storage: SecureS
 
     #Set thread for checking message expiry
     stop_event = threading.Event()
-    expiryChecker = threading.Thread(target=checkIfExpired, args=(ui, messages, page))
+    expiryChecker = threading.Thread(target=checkIfExpired, args=(ui, messages, page, stop_event))
     expiryChecker.start()
 
     conversation["currentChat"]=recipientEmail
@@ -323,7 +322,7 @@ def requestPage(ui: UI, account: Account, api: Client_API):
         elif userInput == 4:
             return {"currentPage": "relationship"}
 
-def checkIfExpired(ui: UI, messages, page):
+def checkIfExpired(ui: UI, messages, page, stop_event):
         while not stop_event.is_set():
             for i in range(len(messages)-1, -1, -1):
                 if messages[i].isExpired():
@@ -331,10 +330,10 @@ def checkIfExpired(ui: UI, messages, page):
                     ui.displayMessages(messages)
             time.sleep(1)
 
-def messageReader(ui: UI, receiveBuffer: List[dict], pageInfo: dict, account: Account, conversation: dict):
+def messageReader(ui: UI, receiveBuffer: List[dict], pageInfo: dict, account: Account, conversation: dict, stop_event):
     #constantly checking some message buffer, or triggered by a message arrival event
     while not stop_event.is_set():
-        while len(receiveBuffer)>1:
+        while len(receiveBuffer)>0:
             #Read the first message
             packet = receiveBuffer[0]
             if packet["type"]=="message":

@@ -24,7 +24,7 @@ class Client_API:
         self.user_email = None
         self.is_authenticated = False
         self.is_connected = False
-        self.receiveBuffer = None
+        self.receiveBuffer = []
         
         # Callback functions for application layer
         self.on_message = lambda msg: self.receiveBuffer.append({'type': 'message', 'content': Message(msg.get('id'),
@@ -225,8 +225,8 @@ class Client_API:
                 friends_list = data.get('friends_list', [])
                 blocked_list = data.get('blocked_list', [])
                 return {"success": True, 
-                        "friends_list": [f["friend_email"] for f in friends_list],
-                        "blocked_list": [b["blocked_email"] for b in blocked_list],
+                        "friends_list": friends_list,
+                        "blocked_list": blocked_list,
                         "token": self.token, 
                         "token_expiry": data.get('token_expiry')}
             else:
