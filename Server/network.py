@@ -298,7 +298,6 @@ def handle_respond_to_friend_request(data):
         return {'success': False, 'error': 'Not authenticated'}
     
     user_email = online_users[sid]
-    user_email = online_users[sid]
     friend_email = data.get('friend_email')
     action = data.get('action')
     
