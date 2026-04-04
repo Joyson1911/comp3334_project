@@ -27,7 +27,12 @@ class Client_API:
         self.receiveBuffer = None
         
         # Callback functions for application layer
-        self.on_message = lambda msg: self.receiveBuffer.append({'type': 'message', 'content': Message()})              # Called when new message received
+        self.on_message = lambda msg: self.receiveBuffer.append({'type': 'message', 'content': Message(msg.get('id'),
+                                                                                                       msg.get('content'),
+                                                                                                       msg.get('from_email'),
+                                                                                                       self.user_email,
+                                                                                                       True, None)})  # Called when new message received
+        
         self.on_friend_request = lambda req: self.receiveBuffer.append({'type': 'request', 'sender': req.get('from_email'), 'receiver': req.get('to_email')})       # Called when friend request received
         self.on_friend_accepted = lambda data: self.receiveBuffer.append({'type': 'response', 'accepted': True, 'sender': data.get('friend_email')})      # Called when friend request accepted
         self.on_friend_rejected = lambda data: self.receiveBuffer.append({'type': 'response', 'accepted': False, 'sender': data.get('friend_email')})      # Called when friend request rejected
@@ -78,8 +83,8 @@ class Client_API:
         def on_offline_messages(messages):
             """Handle offline messages when user connects"""
             print(f"Received {len(messages)} offline messages")
-            if self.on_offline_messages:
-                self.on_offline_messages(messages)
+            # if self.on_offline_messages:
+            #     self.on_offline_messages(messages)
             # Also trigger individual message callbacks
             for msg in messages:
                 if self.on_message:
@@ -258,13 +263,14 @@ class Client_API:
         except Exception as e:
              return {"success": False, "error": f"Network error: {str(e)}"}
         
-    def respond_to_friend_request(self, request_id: int, action: str):
+    def respond_to_friend_request(self, friend_email: str, action: str):
         """
         Handle a pending friend request 
         action: "accept" or "reject"
         """
         try:
             data = self.sio.call('respond_to_friend_request', {
+                'friend_email': friend_email,
                 'action': action
             }, timeout=10)
 
