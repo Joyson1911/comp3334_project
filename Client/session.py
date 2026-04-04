@@ -9,26 +9,14 @@ def getMacAddress():
 
 class Account:
     
-    def __init__(self, user: str, friends: List[str], unread: list[int], blacklist: List[str], sent: List[str], received: List[str], token: str):
+    def __init__(self, user: str, friends: List[str], unread: list[int], blacklist: List[str], token: str, sent: List[str] = [], received: List[str] = []):
         self.locked = False
         self.user = user
         self.friendlist = {"friends": friends, "unread": unread}
         self.blacklist = blacklist
         self.request = {"sent": sent, "received": received} 
         self.token = token
-
-    def buildAccount(email: str, storage: SecureStorage):
-        friends = []
-        unread = []
-        blacklist = []
-        sent = []
-        received = []
-
-        for frd in friends:
-            unread.append(storage.get_unread_count(frd))
-
-        account = Account()
-        ...
+        self.receiveBuffer = []
 
     def lock(self):
          while self.locked:
@@ -39,12 +27,36 @@ class Account:
         self.locked = False
 
     def addFriend(self, index):
+        self.lock()
         self.friendlist["friends"].append(self.request["received"][index])
         self.friendlist["unread"].append(0)
+        self.unlock()
 
     def removeFriend(self, index):
+        self.lock()
         self.friendlist["friends"].pop(index)
         self.friendlist["unread"].pop(index)
+        self.unlock()
+    
+    def addSentRequest(self, receiver: str):
+        self.lock()
+        self.request["sent"].append(receiver)
+        self.unlock()
+
+    def removeSentRequest(self, receiver: str):
+        self.lock()
+        self.request["sent"].remove(receiver)
+        self.unlock()
+
+    def addRcvdRequest(self, sender: str):
+        self.lock()
+        self.request["received"].append(sender)
+        self.unlock()
+
+    def removeRcvdRequest(self, sender: str):
+        self.lock()
+        self.request["received"].remove(sender)
+        self.unlock()
 
     def blacklistUser(self, userEmail):
         if userEmail in self.friendlist["friends"]:

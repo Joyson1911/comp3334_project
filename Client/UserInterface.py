@@ -54,6 +54,7 @@ class UI:
 
     def displayFriend(self, friends: List[str], unread: List[int]):
         #Display friend in the message window
+        self.lock()
         self.msg_win.clear()
         self.msg_win.addstr(0, 0, "Friends:")
         for i in range(len(friends)):
@@ -61,6 +62,7 @@ class UI:
             if unread[i]>0:
                 self.msg_win.addstr(f" ({unread[i]})") 
         self.msg_win.refresh()
+        self.unlock()
 
     def displayRequest(self, sentRequests: List[str], rcvRequests: List[str]):
         #Display sent and received requests in the message window

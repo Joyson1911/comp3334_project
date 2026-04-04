@@ -22,6 +22,7 @@ class Client_API:
         self.user_email = None
         self.is_authenticated = False
         self.is_connected = False
+        self.receiveBuffer = None
         
         # Callback functions for application layer
         self.on_message = None              # Called when new message received
@@ -39,7 +40,7 @@ class Client_API:
         # Background thread for WebSocket
         self.thread = None
         self.running = False
-    
+
     def _setup_handlers(self):
         """Setup all WebSocket event handlers"""
         
@@ -262,6 +263,7 @@ class Client_API:
         self.token = None
         self.user_email = None
         self.is_authenticated = False
+        self.receiveBuffer = None
         print("Logged out")
     
     # ============ Friend Management Methods ============
