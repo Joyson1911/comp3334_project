@@ -216,12 +216,12 @@ class SecureStorage:
             return RSA.read_pub_key(f.read())
         
     @staticmethod
-    def save_public_key(other_email: str, pub_key: str):
+    def save_public_key(other_email: str, pub_key: RSAPublicKey):
         key_path = ss.STORE_DIR.joinpath(other_email, 'k.pem')
         ss.create_if_not_exist(key_path, False)
         
         with key_path.open('w') as f:
-            f.write(pub_key)
+            f.write(RSA.get_pub_str(pub_key))
         
     @staticmethod
     def create_if_not_exist(filepath: Path, isDir: bool):

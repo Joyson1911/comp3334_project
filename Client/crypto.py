@@ -141,7 +141,7 @@ class RSA():
         )
         
     @staticmethod
-    def encrypt_msg(message: bytes, other_pub_k: RSAPublicKey) -> bytes:
+    def encrypt_msg(message: bytes, other_pub_k: str) -> bytes:
         """Encrypts the message using other's public key.
 
         Parameters
@@ -156,7 +156,8 @@ class RSA():
         bytes
             Encrypted bytes.
         """
-        return other_pub_k.encrypt(
+        
+        return RSA.read_pub_key(other_pub_k).encrypt(
             message,
             Padding.OAEP.value,
         )
