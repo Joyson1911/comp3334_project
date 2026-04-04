@@ -12,11 +12,11 @@ app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # In-memory storage (replace with database in production !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!)
-users = []           # {id, email, password, otp, created_at}
+users = []           # {id, email, password, otp, created_at, macAddress, publicKey}  
 friends = []         # {user_email, friend_email, created_at}
 blocked = []           # {user_email, blocked_email}
-friend_requests = [] # {id, from_email, to_email, status, created_at}        no id 
-messages = []        # {id, from_email, to_email, content, timestamp, delivered}
+friend_requests = [] # {from_email, to_email, status, created_at}  
+messages = []        # {id, from_email, to_email, content, timestamp, delivered, macAddress} 
 
 # Online user management
 online_users = {}    # sid -> user_email
@@ -120,6 +120,8 @@ def handle_register(data):
         'email': email,
         'password': password,
         'otp': otp,
+        'macAddress': None,
+        'publicKey': None,
         'created_at': datetime.now().isoformat()
     }
     users.append(new_user)
@@ -137,6 +139,9 @@ def handle_login(data):
     email = data.get('email')
     password = data.get('password')
     otp = str(data.get('otp')).strip()
+    
+    macAddress = data.get('macAddress')
+    publicKey = data.get('publicKey')
 
     print(f"from {email}: {otp}") #need to remove!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -165,7 +170,7 @@ def handle_login(data):
         
         if otp != str(pending_otps.get(email)).strip():
             return {'success': False, 'error': 'Invalid OTP'}
-        
+
         # Generate access token
         token, token_expiry_time = generate_token()
         
@@ -175,6 +180,10 @@ def handle_login(data):
         sid = request.sid
         online_users[sid] = email
         user_sid_map[email] = sid
+        
+        # Update user's device info
+        user['macAddress'] = macAddress
+        user['publicKey'] = publicKey
     
     # Send offline messages if any
     offline_msgs = [
@@ -253,25 +262,27 @@ def handle_send_friend_request(data):
     if friend_email == user_email:
         return {'success': False, 'error': 'Cannot add yourself'}
     
+    if any(f for f in friend_requests if f['from_email'] == user_email and f['to_email'] == friend_email):
+        return {'success': False, 'error': 'Request already sent'}
+    
     # Check if already friends
     if any(f for f in friends if f['user_email'] == user_email and f['friend_email'] == friend_email):
         return {'success': False, 'error': 'Already friends'}
     
     # Create friend request
     new_request = {
-        'id': len(friend_requests) + 1,
+        # 'id': len(friend_requests) + 1,
         'from_email': user_email,
         'to_email': friend_email,
         'status': 'pending',
-        'created_at': datetime.now().isoformat()
     }
     friend_requests.append(new_request)
     
     # Real-time notification if recipient is online
     if friend_email in user_sid_map:
         socketio.emit('friend_request_received', {
-            'request_id': new_request['id'],
             'from_email': user_email,
+            'to_email': friend_email,
         }, room=user_sid_map[friend_email])
     
     return {'success': True, 'message': 'Request sent', 'request_id': new_request['id']}
