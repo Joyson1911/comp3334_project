@@ -237,7 +237,11 @@ class Client_API:
         self.is_authenticated = False
         self.receiveBuffer = None
         print("Logged out")
-        
+    
+    
+    
+    # ============ Friend Management Methods ============
+    
     def send_friend_request(self, user_email: str):
         """ 
         Send friend request to another user
@@ -294,6 +298,25 @@ class Client_API:
                 else:
                     return {"success": False, "error": f"Failed to block user: {data.get('error')}"}
                 
+        except Exception as e:
+             return {"success": False, "error": f"Network error: {str(e)}"}
+    
+         
+    # ============ Messaging Methods ============
+    
+    def get_public_key(self, friend_email: str):
+        """
+        Get friend's public key for end-to-end encryption
+        """
+        try:
+            data = self.sio.call('get_public_key', {
+                'friend_email': friend_email,
+            }, timeout=10)
+
+            if data and data.get('success'):
+                return {"success": True, "public_key": data.get('public_key')}
+            else:
+                return {"success": False, "error": f"Failed to get public key: {data.get('error')}"}
         except Exception as e:
              return {"success": False, "error": f"Network error: {str(e)}"}
         

@@ -392,6 +392,24 @@ def handle_unfriend_request(data):
 
 # ============ Messaging Events ============
 
+@socketio.on('get_public_key')
+def handle_get_public_key(data):
+    """
+    Get a user's public key for end-to-end encryption
+    Expected data: {friend_email}
+    """
+    sid = request.sid
+    if sid not in online_users:
+        return {'success': False, 'error': 'Not authenticated'}
+    
+    friend_email = data.get('friend_email')
+    
+    friend = find_user_by_email(friend_email)
+    if not friend:
+        return {'success': False, 'error': 'Friend not found'}
+    
+    return {'success': True, 'public_key': friend.get('publicKey')}
+
 @socketio.on('send_message')
 def handle_send_message(data):
     """
