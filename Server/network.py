@@ -285,7 +285,7 @@ def handle_send_friend_request(data):
             'to_email': friend_email,
         }, room=user_sid_map[friend_email])
     
-    return {'success': True, 'message': 'Request sent', 'request_id': new_request['id']}
+    return {'success': True, 'message': 'Request sent'}
 
 @socketio.on('respond_to_friend_request')
 def handle_respond_to_friend_request(data):
@@ -298,11 +298,12 @@ def handle_respond_to_friend_request(data):
         return {'success': False, 'error': 'Not authenticated'}
     
     user_email = online_users[sid]
-    req_id = data.get('request_id')
+    user_email = online_users[sid]
+    friend_email = data.get('friend_email')
     action = data.get('action')
     
     # Find the request
-    req = next((r for r in friend_requests if r['id'] == req_id), None)
+    req = next((r for r in friend_requests if r['from_email'] == friend_email and r['to_email'] == user_email), None)
     if not req or req['to_email'] != user_email:
         return {'success': False, 'error': 'Request not found'}
     
@@ -339,7 +340,6 @@ def handle_respond_to_friend_request(data):
         if req['from_email'] in user_sid_map:
             socketio.emit('friend_request_rejected', {
                 'from_email': req['to_email'],
-                'request_id': req_id
             }, room=user_sid_map[req['from_email']])
             
     else:
