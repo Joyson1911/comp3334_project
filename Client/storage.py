@@ -166,7 +166,9 @@ class SecureStorage:
         msg_path = list(self.user_msg_dir.glob(f'{other_email}_*'))
         
         if len(msg_path) <= 0:
-            self.user_msg_dir.joinpath(f'{other_email}_0.txt').touch()
+            f = self.user_msg_dir.joinpath(f'{other_email}_0.txt')
+            f.touch()
+            msg_path.append(f)
         
         store_msg = list(map(lambda m: str(self._to_msg_store(m)), messages))
 
