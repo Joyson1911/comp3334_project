@@ -18,7 +18,7 @@ def main(stdscr):
     while True:
 
         #Establish connection with server    
-        api = Client_API("http://localhost:3000")
+        api = Client_API()
         api.connect()
 
         #Load login page
