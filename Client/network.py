@@ -19,7 +19,7 @@ class Client_API:
             server_url: WebSocket server URL (e.g., https://localhost:3000)
         """
         self.server_url = server_url
-        self.sio = socketio.Client()
+        self.sio = socketio.Client(ssl_verify=False)
         self.token = None
         self.user_email = None
         self.is_authenticated = False
@@ -129,12 +129,10 @@ class Client_API:
         Starts background thread to handle WebSocket connection
         """
         def connect_thread():
-            try:
-                self.sio.connect(self.server_url, transports=['websocket'])
-                self.sio.wait()  # Block and maintain connection
-            except Exception as e:
-                print(f"Connection failed: {e}")
-                self.is_connected = False
+
+            self.sio.connect(self.server_url, transports=['websocket'])
+            self.sio.wait()  # Block and maintain connection
+
         
         self.thread = threading.Thread(target=connect_thread, daemon=True)
         self.thread.start()
