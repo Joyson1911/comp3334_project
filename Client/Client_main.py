@@ -34,7 +34,7 @@ def main(stdscr):
         conversation = {"currentChat": None, "messageList": None, "page": None}
         #Check buffer
         stop_event = threading.Event()
-        bufferReader = threading.Thread(target=messageReader, args=(ui, api.receiveBuffer, pageInfo, account, conversation, stop_event))
+        bufferReader = threading.Thread(target=messageReader, args=(ui, api.receiveBuffer, pageInfo, account, conversation, stop_event, storage))
         bufferReader.start()
 
         #Handle unexpected termination of the process
@@ -64,6 +64,7 @@ def main(stdscr):
                 account = None
 
                 api.logout()
+                ui.showFeedback("Logged out.")
                 break
             elif pageInfo["currentPage"]=="exit":
                 ui.showFeedback("Cleaning resource...")
@@ -126,7 +127,7 @@ def loginPage(ui: UI, api: Client_API, storage: SecureStorage):
             #Request otp from server
             otp_result = api.otp_request(email, "register")
             if not otp_result.get("success"):
-                ui.showFeedback("Server failed to sent verification code. Please retry.")
+                ui.showFeedback(otp_result.get("error"))
                 continue
             otp = str(otp_result.get("otp"))
             ui.showFeedback("Verification code sent to your email.")
@@ -238,21 +239,28 @@ def chatroomPage(ui: UI, account: Account, storage: SecureStorage, conversation:
     stop_event = threading.Event()
     expiryChecker = threading.Thread(target=checkIfExpired, args=(ui, messages, page, stop_event))
     expiryChecker.start()
+    a = -page[0]*10-1
+    b = len(messages)-10*(page[0]-1)
     ui.drawMenu("Menu: 1. Send message | 2. Set message lifetime | 3. Remove message lifetime  | 4. Last page | 5. Next page | 6. Return to contacts")
-    ui.displayMessage(messages[-page[0]*10-1:-(page[0]-1)*10-1])
+    ui.displayMessage(messages[a:b])
     while True:
-        ui.setTitle(f"Chatroom with {recipientEmail}: Page {page[0]+1}")
+        a = -page[0]*10-1
+        b = len(messages)-10*(page[0]-1)
+        ui.setTitle(f"Chatroom with {recipientEmail}: Page {page[0]}")
         userInput = ui.getInteger("Enter: ", 7)
         if userInput == 1:
             content = ui.getString("Enter message: ")
-            msg = Message(None, content, account.user, recipientEmail, lifetime, None)
+            msg = Message(None, content, account.user, recipientEmail, None, None)
             send_result = api.send_message(recipientEmail, msg.message)
             if not send_result.get("success"):
                 ui.showFeedback(send_result.get("error"))
                 continue
-            msg.delivered = send_result.get("status") == "delivered"
+            msg.delivered = send_result.get("delivered")
+            msg.id = send_result.get("message_id")
             messages.append(msg)
-            ui.displayMessage(messages[-page[0]*10-1:-(page[0]-1)*10-1])
+            a = -page[0]*10-1
+            b = len(messages)-10*(page[0]-1)
+            ui.displayMessage(messages[a:b])
         elif userInput == 2:
             ui.showFeedback("Units of message lifetime are s(second), m(minute) and h(hour). Min: 30s, Max: 24h")
             life = ui.getTime("Enter message lifetime: ")
@@ -260,10 +268,14 @@ def chatroomPage(ui: UI, account: Account, storage: SecureStorage, conversation:
             lifetime = -1
         elif userInput == 4:
             page[0]-=1
-            ui.displayMessage(messages[-page[0]*10-1:-(page[0]-1)*10-1])
+            a = -page[0]*10-1
+            b = len(messages)-10*(page[0]-1)
+            ui.displayMessage(messages[a:b])
         elif userInput == 5:
             page[0]+=1
-            ui.displayMessage(messages[-page[0]*10-1:-(page[0]-1)*10-1])
+            a = -page[0]*10-1
+            b = len(messages)-10*(page[0]-1)
+            ui.displayMessage(messages[a:b])
         elif userInput == 6:
             storage.write_chat_msg(recipientEmail, messages)
             pageInfo["currentPage"] = "contact"
@@ -364,7 +376,7 @@ def checkIfExpired(ui: UI, messages, page, stop_event):
                     ui.displayMessages(messages)
             time.sleep(1)
             
-def messageReader(ui: UI, receiveBuffer: List[dict], pageInfo: dict, account: Account, conversation: dict, stop_event):
+def messageReader(ui: UI, receiveBuffer: List[dict], pageInfo: dict, account: Account, conversation: dict, stop_event, storage: SecureStorage):
     #constantly checking some message buffer, or triggered by a message arrival event
     while not stop_event.is_set():
         while len(receiveBuffer)>0:
@@ -372,13 +384,14 @@ def messageReader(ui: UI, receiveBuffer: List[dict], pageInfo: dict, account: Ac
             packet = receiveBuffer[0]
             if packet["type"]=="message":
                 msg = packet["content"]
-                friend = msg.sender if msg.receiver==account.user else msg.receiver
+                friend = msg.sender if msg.recipient==account.user else msg.recipient
                 if conversation["currentChat"]==friend:
                     conversation["messageList"].append(msg)
-                    page = conversation["page"]
-                    ui.displayMessage(conversation["messageList"][-page*10-1:-(page-1)*10-1])
+                    a = -conversation["page"]*10-1
+                    b = len(conversation["messageList"])-10*(conversation["page"]-1)
+                    ui.displayMessage(conversation["messageList"][a:b])
                 else:
-                    #write message to file
+                    storage.append_msgs(packet["content"].sender, [packet["content"]])
                     account.friendlist["unread"][account.friendlist["friends"].index(friend)]+=1
                     if pageInfo["currentPage"]=="contact":
                         ui.displayFriend(account.friendlist["friends"], account.friendlist["unread"])

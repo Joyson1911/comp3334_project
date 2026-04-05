@@ -30,7 +30,7 @@ class Client_API:
         self.on_message = lambda msg: self.receiveBuffer.append({'type': 'message', 'content': Message(msg.get('id'),
                                                                                                        msg.get('content'),
                                                                                                        msg.get('from_email'),
-                                                                                                       self.user_email,
+                                                                                                       msg.get('to_email'),
                                                                                                        True, None)})  # Called when new message received
         
         self.on_friend_request = lambda req: self.receiveBuffer.append({'type': 'request', 'sender': req.get('from_email'), 'receiver': req.get('to_email')})       # Called when friend request received

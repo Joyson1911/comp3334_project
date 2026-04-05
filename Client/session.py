@@ -27,13 +27,10 @@ class Account:
         self.locked = False
 
     def addFriend(self, user: str, request: str):
+        #Request: "sent"/"received"
         self.lock()
-        if request == "sent":
-            index = self.request["sent"].index(user)
-        elif request == "received":
-            index = self.request["received"].index(user)
-            
-        self.friendlist["friends"].append(self.request["received"][index])
+        index = self.request[request].index(user)
+        self.friendlist["friends"].append(self.request[request][index])
         self.friendlist["unread"].append(0)
         self.unlock()
 

@@ -2,26 +2,19 @@ import eventlet
 eventlet.monkey_patch()
 
 from flask import Flask, request
-from flask_socketio import SocketIO, emit
+from flask_socketio import SocketIO, emit, disconnect, ConnectionRefusedError
 import secrets
 from datetime import datetime
 from datetime import timedelta
-
-from database import db, User, Friendship, BlockedUser, FriendRequest, Message
 #from Email import emailVerification
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///chat_app.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-db.init_app(app)
-
 # In-memory storage (replace with database in production !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!)
 users = []           # {id, email, password, otp, created_at, macAddress, publicKey}  
 friends = []         # {user_email, friend_email, created_at}
-blocked = []          # {user_email, blocked_email}
+blocked = []           # {user_email, blocked_email}
 friend_requests = [] # {from_email, to_email, status, created_at}  
 messages = []        # {id, from_email, to_email, content, timestamp, delivered, macAddress} 
 
@@ -36,9 +29,12 @@ otp_lifetime = timedelta(minutes=5)  # OTP lifetime
 
 # ============ Helper Functions ============
 
-def find_user_by_email(email) -> User:
+def find_user_by_email(email):
     """Find user by email address"""
-    return User.query.filter_by(email=email).first()
+    for user in users:
+        if user['email'] == email:
+            return user
+    return None
 
 def generate_token():
     """Generate a secure random token for authentication"""
@@ -118,23 +114,17 @@ def handle_register(data):
     if otp != str(pending_otps.get(email)).strip():
         return {'success': False, 'error': 'Invalid OTP'}
     
-     # OTP is valid, remove it from pending list
-    pending_otps.pop(email, None)
-    
-    try:
-        new_user = User(
-            email = email,
-            password = password,
-            macAddress = None,
-            publicKey = None,
-            created_at = datetime.utcnow() 
-        )
-        db.session.add(new_user)
-        db.session.commit()
-        
-    except Exception as e:
-        db.session.rollback()
-        return {'success': False, 'error': f'Database error occurred: {str(e)}'}
+    # Create new user
+    new_user = {
+        'id': len(users) + 1,
+        'email': email,
+        'password': password,
+        'otp': otp,
+        'macAddress': None,
+        'publicKey': None,
+        'created_at': datetime.now().isoformat()
+    }
+    users.append(new_user)
     
     return {'success': True, 'message': 'Registered successfully', 'user': {'email': email}}
 
@@ -142,7 +132,7 @@ def handle_register(data):
 def handle_login(data):
     """
     Authenticate user and establish session
-    Expected data: {token} for auto-login or {email, password, otp} for credential-based login
+    Expected data: {token} or {email, password, otp}
     """
     token = data.get('token')
 
@@ -153,27 +143,18 @@ def handle_login(data):
     macAddress = data.get('macAddress')
     publicKey = data.get('publicKey')
 
-    #need to remove!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     print(f"from {email}: {otp}") #need to remove!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    #need to remove!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    
-    if token and token in sessions:
+
+    if token:
         # Token-based authentication (auto-login)
-        cached_user = sessions[token]
-        
-        if token_map[token] > datetime.now():
-            
-            # user = sessions[token]
-            
+        if token in sessions and token_map[token] > datetime.now():
+            user = sessions[token]
+            email = user['email']
             # Update current connection mapping
-            email = cached_user.email
             sid = request.sid
             online_users[sid] = email
             user_sid_map[email] = sid
-            
             print(f"Auto-login successful: {email}")
-            
-            sessions[token] = cached_user
             
             token_expiry_time = token_map[token]    
         else:
@@ -184,15 +165,11 @@ def handle_login(data):
         user = find_user_by_email(email)
         
         # Validate credentials
-        if not user or user.password != password:
+        if not user or user['password'] != password or not otp:
             return {'success': False, 'error': 'Invalid credentials'}
         
-        # Validate OTP
-        if not otp or otp != str(pending_otps.get(email)).strip():
+        if otp != str(pending_otps.get(email)).strip():
             return {'success': False, 'error': 'Invalid OTP'}
-        
-        # OTP is valid, remove it from pending list
-        pending_otps.pop(email, None)
 
         # Generate access token
         token, token_expiry_time = generate_token()
@@ -205,52 +182,38 @@ def handle_login(data):
         user_sid_map[email] = sid
         
         # Update user's device info
-        user.macAddress = macAddress
-        user.publicKey = publicKey
-        db.session.commit()
-        print(f"User {email} logged in and info updated in DB.")
+        user['macAddress'] = macAddress
+        user['publicKey'] = publicKey
     
     # Send offline messages if any
-    offline_msgs_query = Message.query.filter_by(to_email=user.email, delivered=False).all()
+    offline_msgs = [
+        msg for msg in messages 
+        if msg['to_email'] == user['email'] and not msg.get('delivered', False)
+    ]
+    if offline_msgs:
+        print(f"Sending {len(offline_msgs)} offline messages to {user['email']}")
+        emit('offline_messages', offline_msgs)
     
-    if offline_msgs_query:
-        formatted_msgs = [{
-            'from_email': m.from_email,
-            'content': m.content,
-            'timestamp': m.timestamp.isoformat() if m.timestamp else None,
-            'macAddress': m.macAddress
-        } for m in offline_msgs_query]
+    # Send pending friend requests if any
+    offline_reqs = [
+        req for req in friend_requests 
+        if req['to_email'] == user['email'] and req['status'] == 'pending'
+    ]
+    if offline_reqs:
+        print(f"Sending {len(offline_reqs)} offline friend requests to {user['email']}")
+        emit('offline_friend_requests', offline_reqs)
     
-    print(f"Sending {len(formatted_msgs)} offline messages to {user.email}")
-    emit('offline_messages', formatted_msgs)
-    
-    offline_reqs_query = FriendRequest.query.filter_by(to_email=user.email, status='pending').all()
-    
-    if offline_reqs_query:
-        formatted_reqs = [{
-            'from_email': r.from_email,
-            'timestamp': r.created_at.isoformat() if r.created_at else None
-        } for r in offline_reqs_query]
-    
-    print(f"Sending {len(formatted_reqs)} offline friend requests to {user.email}")
-    emit('offline_friend_requests', formatted_reqs)
-    
-    #need to remove!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    print(f"token: {token}") #need to remove!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    #need to remove!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    print(f"token: {token}")
     
     token_map[token] = token_expiry_time
-    
-    user_friends = Friendship.query.filter_by(user_email=email).all()
-    user_blocked = BlockedUser.query.filter_by(user_email=email).all()
     
     return {
         'success': True, 
         'access_token': token,
         'user': {'email': email}, 
         'token_expiry_time': token_expiry_time.isoformat(),
-        'friends_list': [f.friend_email for f in user_friends],
-        'blocked_list': [b.blocked_email for b in user_blocked]
+        'friends_list': [f['friend_email'] for f in friends if f['user_email'] == email],
+        'blocked_list': [b['blocked_email'] for b in blocked if b['user_email'] == email]
     }
 
 
@@ -286,10 +249,7 @@ def handle_send_friend_request(data):
     if sid not in online_users:
         return {'success': False, 'error': 'Not authenticated'}
     
-    # User sending the request
     user_email = online_users[sid]
-    
-    # User receiving the request
     friend_email = data.get('user_email')
     
     if not friend_email:
@@ -302,48 +262,23 @@ def handle_send_friend_request(data):
     if friend_email == user_email:
         return {'success': False, 'error': 'Cannot add yourself'}
     
-    # Check if request already exists
-    existing_request = FriendRequest.query.filter_by(
-        from_email=user_email, 
-        to_email=friend_email, 
-        status='pending'
-    ).first()
-    if existing_request:
+    if any(f for f in friend_requests if f['from_email'] == user_email and f['to_email'] == friend_email):
         return {'success': False, 'error': 'Request already sent'}
     
     # Check if already friends
-    is_already_friend = Friendship.query.filter_by(
-        user_email=user_email, 
-        friend_email=friend_email
-    ).first()
-    if is_already_friend:
+    if any(f for f in friends if f['user_email'] == user_email and f['friend_email'] == friend_email):
         return {'success': False, 'error': 'Already friends'}
     
     # Create friend request
-    # new_request = {
-    #     # 'id': len(friend_requests) + 1,
-    #     'from_email': user_email,
-    #     'to_email': friend_email,
-    #     'status': 'pending',
-    # }
-    # friend_requests.append(new_request)
-    # print("Request sent")
+    new_request = {
+        # 'id': len(friend_requests) + 1,
+        'from_email': user_email,
+        'to_email': friend_email,
+        'status': 'pending',
+    }
+    friend_requests.append(new_request)
+    print("Request sent")
     
-    try:
-        new_request = FriendRequest(
-            from_email=user_email,
-            to_email=friend_email,
-            status='pending',
-            created_at=datetime.utcnow()
-        )
-        db.session.add(new_request)
-        db.session.commit()
-        print(f"Friend request from {user_email} to {friend_email} saved to DB")
-        
-    except Exception as e:
-        db.session.rollback()
-        return {'success': False, 'error': f'Database error occurred: {str(e)}'}
-     
     # Real-time notification if recipient is online
     if friend_email in user_sid_map:
         socketio.emit('friend_request_received', {
@@ -473,7 +408,7 @@ def handle_get_public_key(data):
     if not friend:
         return {'success': False, 'error': 'Friend not found'}
     
-    return {'success': True, 'public_key': friend.publicKey}
+    return {'success': True, 'public_key': friend.get('publicKey')}
 
 @socketio.on('send_message')
 def handle_send_message(data):
@@ -524,6 +459,7 @@ def handle_send_message(data):
         socketio.emit('new_message', {
             'id': message['id'],
             'from_email': from_email,
+            'to_email': to_email,
             'content': content,
             'timestamp': timestamp
         }, room=user_sid_map[to_email])

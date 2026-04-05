@@ -45,10 +45,8 @@ class UI:
         #Display messages in the message window
         self.lock()
         self.msg_win.clear()
-        row = 0
-        for i in range(len(messages) - 1, -1, -1):
-            self.msg_win.addstr(row, 0, f"{messages[i].sender}: {messages[i].message}")
-            row+=1
+        for i in range(len(messages)):
+            self.msg_win.addstr(i, 0, f"{messages[i].sender}: {messages[i].message}")
         self.msg_win.refresh()
         self.unlock()
 

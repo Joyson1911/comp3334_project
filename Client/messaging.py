@@ -6,7 +6,7 @@ class Message:
     
     #content: message body, sender, recipent: email, lifetime: seconds
     # TODO complete the class and docs 
-    def __init__(self, id: int, content: str, sender: str, recipent: str, delivered: bool, delete_time: datetime | None = None):
+    def __init__(self, id: int, content: str, sender: str, recipient: str, delivered: bool, delete_time: datetime | None = None):
         """Construct a message object by the given args
 
         Parameters
@@ -26,7 +26,7 @@ class Message:
         self.id = id
         self.message = content
         self.sender = sender
-        self.recipent = recipent
+        self.recipient = recipient
         self.delivered = delivered
         self.delete_time = delete_time #time of expiry
     
