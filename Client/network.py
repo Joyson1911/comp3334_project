@@ -338,11 +338,11 @@ class Client_API:
             }, timeout=10)
 
             if data and data.get('success'):
-                status = data.get('status', 'unknown')
+                status = data.get('status', None)
                 if status:
                     return {"success": True, "status": "delivered"}
                 else:
-                    return {"success": True, "status": "stored"}
+                    return {"success": True, "status": "sent"}
             else:
                 return {"success": False, "error": f"Failed to send message: {data.get('error')}"}
         except Exception as e:

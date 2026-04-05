@@ -25,36 +25,39 @@ def main(stdscr):
         storage = SecureStorage()
         storage.initiate()
 
+        pageInfo = {"currentPage": "login"}
         account = login(ui, api, storage)
         storage.set_email(account.user)
-            
         
-        pageInfo = {"currentPage": "contact"}
+        
+        
         conversation = {"currentChat": None, "messageList": None, "page": None}
         #Check buffer
         stop_event = threading.Event()
         bufferReader = threading.Thread(target=messageReader, args=(ui, api.receiveBuffer, pageInfo, account, conversation, stop_event))
         bufferReader.start()
 
+        #Handle unexpected termination of the process
+        pageInfo["currentPage"] = "contact"
         while True:
             ui.clearMsgWindow()
             if pageInfo["currentPage"]=="contact":
-                pageInfo = contactPage(ui, account, storage, api)
+                contactPage(ui, account, storage, api, pageInfo, conversation)
 
             elif pageInfo["currentPage"]=="chatroom":
-                pageInfo = chatroomPage(ui, account, pageInfo["recipent"], storage, conversation, api)
+                chatroomPage(ui, account, storage, conversation, api, pageInfo)
 
             elif pageInfo["currentPage"]=="relationship":
-                pageInfo = relationshipPage(ui, account, api)
+                relationshipPage(ui, account, api, pageInfo)
 
             elif pageInfo["currentPage"]=="request":
-                pageInfo = requestPage(ui, account, api)
+                requestPage(ui, account, api, pageInfo)
 
             elif pageInfo["currentPage"]=="logout":
                 ui.showFeedback("Logging out...")
                 #End thread
                 stop_event.set()
-                messageReader.join()
+                bufferReader.join()
 
                 for i in range(len(account.friendlist["friends"])):
                     storage.set_unread_count(account.friendlist["friends"][i], account.friendlist["unread"][i])
@@ -88,7 +91,7 @@ def loginPage(ui: UI, api: Client_API, storage: SecureStorage):
             #Request OTP from server
             otp_result = api.otp_request(email, "login")
             if not otp_result.get("success"):
-                ui.showFeedback("Server failed to sent verification code. Please retry.")
+                ui.showFeedback(otp_result.get("error"))
                 continue
             otp = str(otp_result.get("otp"))
             ui.showFeedback("Verification code sent to your email.")
@@ -104,6 +107,7 @@ def loginPage(ui: UI, api: Client_API, storage: SecureStorage):
                 continue
             
             #Build user session 
+            storage.set_email(email)
             token = login_result.get("token")
             friends = login_result.get("friends_list")
             blacklist = login_result.get("block_list")
@@ -174,7 +178,7 @@ def login(ui: UI, api: Client_API, storage: SecureStorage):
             return account
    
 
-def contactPage(ui: UI, account: Account, storage: SecureStorage, api: Client_API):
+def contactPage(ui: UI, account: Account, storage: SecureStorage, api: Client_API, pageInfo: dict, conversation: dict):
     ui.setTitle("Contacts:")
     ui.drawMenu("Menu: 1. Enter chatroom | 2. Manage contacts | 3. Log out | 4. Exit program")
     ui.displayFriend(account.friendlist["friends"], account.friendlist["unread"])
@@ -186,56 +190,69 @@ def contactPage(ui: UI, account: Account, storage: SecureStorage, api: Client_AP
                 ui.showFeedback("You have no friends at the moment. Add new friends to start a conversation.")
                 continue
             userInput = ui.getInteger("Enter chatroom ID: ", len(account.friendlist["friends"])+1)
-            return {"currentPage":"chatroom", "recipent": account.friendlist["friends"][userInput-1]}
+
+            messages = storage.load_chat_msg(account.friendlist["friends"][userInput-1])
+            conversation["currentChat"]=account.friendlist["friends"][userInput-1]
+            conversation["messageList"]=messages
+            pageInfo["currentPage"] = "chatroom"
+            return
         elif userInput == 2:
-            return {"currentPage":"relationship"}
+            pageInfo["currentPage"] = "relationship"
+            return
         elif userInput == 3:
             storage.remove_session()
             for i in range(len(account.friendlist["friends"])):
                 storage.set_unread_count(account.friendlist["friends"][i], account.friendlist["unread"][i])
             api.logout()
             account = None
-            return {"currentPage":"logout"}
+            pageInfo["currentPage"] = "logout"
+            return
         elif userInput == 4:
             userInput = ui.getInteger("Are you sure to exit without logging out? Yes(1)/No(2): ", 3)
             if userInput == 2:
                 continue
-            return {"currentPage":"exit"}
+            pageInfo["currentPage"] = "exit"
+            return
 
-def chatroomPage(ui: UI, account: Account, recipientEmail: str, storage: SecureStorage, conversation: dict, api: Client_API):
+def chatroomPage(ui: UI, account: Account, storage: SecureStorage, conversation: dict, api: Client_API, pageInfo: dict):
+    recipientEmail = conversation["currentChat"]
     recipientKey =  storage.get_public_key(recipientEmail)
     latestKey = api.get_public_key(recipientEmail)
     if latestKey!=recipientKey:
         ui.showFeedback("WARNING: This user has switched to a new device. Are you sure to continue?")
         userInput = ui.getInteger("Continue with warning(1), Leave the chatroom(2): ", 3)
         if userInput == 2:
-            return {"currentPage": "contact"}
+            storage.write_chat_msg(recipientEmail, conversation["messageList"])
+            pageInfo["currentPage"] = "contact"
+            conversation["messageList"] = None
+            conversation["currentChat"] = None
+            return
         
     #storage.save_public_key(recipientEmail, latestKey)
     account.friendlist["unread"][account.friendlist["friends"].index(recipientEmail)] = 0
-    page = [1]
-    messages = storage.load_chat_msg(recipientEmail)
     lifetime = -1
-
+    page = [1]
+    conversation["page"] = page[0]
+    messages = conversation["messageList"]
     #Set thread for checking message expiry
     stop_event = threading.Event()
     expiryChecker = threading.Thread(target=checkIfExpired, args=(ui, messages, page, stop_event))
     expiryChecker.start()
-
-    conversation["currentChat"]=recipientEmail
-    conversation["messageList"]=messages
-    conversation["page"]=page[0]
     ui.drawMenu("Menu: 1. Send message | 2. Set message lifetime | 3. Remove message lifetime  | 4. Last page | 5. Next page | 6. Return to contacts")
-    ui.displayMessage.messages[-page*10-1:-(page-1)*10-1]
+    ui.displayMessage(messages[-page[0]*10-1:-(page[0]-1)*10-1])
     while True:
-        ui.setTitle(f"Chatroom with {recipientEmail}: Page {page+1}")
+        ui.setTitle(f"Chatroom with {recipientEmail}: Page {page[0]+1}")
         userInput = ui.getInteger("Enter: ", 7)
         if userInput == 1:
             content = ui.getString("Enter message: ")
-            msg = Message(content, account.user, recipientEmail, lifetime)
-            #Ask server for ID
+            msg = Message(None, content, account.user, recipientEmail, lifetime, None)
+            send_result = api.send_message(recipientEmail, msg.message)
+            if not send_result.get("success"):
+                ui.showFeedback(send_result.get("error"))
+                continue
+            msg.delivered = send_result.get("status") == "delivered"
             messages.append(msg)
-            ui.displayMessage(messages[page*10:page*10+10])
+            ui.displayMessage(messages[-page[0]*10-1:-(page[0]-1)*10-1])
         elif userInput == 2:
             ui.showFeedback("Units of message lifetime are s(second), m(minute) and h(hour). Min: 30s, Max: 24h")
             life = ui.getTime("Enter message lifetime: ")
@@ -243,21 +260,21 @@ def chatroomPage(ui: UI, account: Account, recipientEmail: str, storage: SecureS
             lifetime = -1
         elif userInput == 4:
             page[0]-=1
-            ui.displayMessage(messages[page*10:page*10+10])
+            ui.displayMessage(messages[-page[0]*10-1:-(page[0]-1)*10-1])
         elif userInput == 5:
             page[0]+=1
-            ui.displayMessage(messages[page*10:page*10+10])
+            ui.displayMessage(messages[-page[0]*10-1:-(page[0]-1)*10-1])
         elif userInput == 6:
             storage.write_chat_msg(recipientEmail, messages)
-            ret = {"currentPage": "contact"}
+            pageInfo["currentPage"] = "contact"
             break
 
     stop_event.set()
     expiryChecker.join()
     storage.write_chat_msg(recipientEmail, messages)
-    return ret
+    return
 
-def relationshipPage(ui: UI, account: Account, api: Client_API):
+def relationshipPage(ui: UI, account: Account, api: Client_API, pageInfo: dict):
     ui.setTitle("Manage your contacts: ")
     ui.displayFriend(account.friendlist["friends"], account.friendlist["unread"])
     ui.drawMenu("Menu: 1. Send friend request | 2. Unfriend user | 3. Block user | 4. Check request | 5. Return to contacts")
@@ -266,10 +283,10 @@ def relationshipPage(ui: UI, account: Account, api: Client_API):
         if userInput == 1:
             userInput = ui.getString("Enter user email: ")
             send_result = api.send_friend_request(userInput)
-            
             if not send_result["success"]: #if user does not exist
                 ui.showFeedback(send_result.get("error"))
                 continue
+            account.addSentRequest(userInput)
             ui.showFeedback(f"Friend request sent to {userInput}")
         elif userInput == 2:
             if len(account.friendlist["friends"])<1:
@@ -283,7 +300,7 @@ def relationshipPage(ui: UI, account: Account, api: Client_API):
             if not unfrd_result.get("success"):
                 ui.showFeedback(f"Failed to unfriend. {unfrd_result.get("error")}")
                 continue
-            account.friendlist["friends"].remove(userInput)
+            account.removeFriend(userInput)
             ui.showFeedback(f"Removed user: {userInput} from your friends list.")
         elif userInput == 3:
             userInput = ui.getString("Enter user email: ")
@@ -295,15 +312,17 @@ def relationshipPage(ui: UI, account: Account, api: Client_API):
             account.blacklistUser(userInput)
             ui.showFeedback(f"Blocked user: {userInput}.")
         elif userInput == 4:
-            return {"currentPage": "request"}
+            pageInfo["currentPage"] = "request"
+            return
         elif userInput == 5:
-            return  {"currentPage": "contact"}
+            pageInfo["currentPage"] = "contact"
+            return
 
-def requestPage(ui: UI, account: Account, api: Client_API):
+def requestPage(ui: UI, account: Account, api: Client_API, pageInfo: dict):
     ui.setTitle("Pending requests:")
-    ui.displayRequest(account.request["sent"], account.request["received"])
     ui.drawMenu("Menu: 1. Accept request | 2. Decline request | 3. Cancel request | 4. Return to manage page")
     while True:
+        ui.displayRequest(account.request["sent"], account.request["received"])
         userInput = ui.getInteger("Enter: ", 5)
         if userInput == 1:
             if len(account.request["received"])<1:
@@ -314,7 +333,7 @@ def requestPage(ui: UI, account: Account, api: Client_API):
             if not accept_result.get("success"):
                 ui.showFeedback(accept_result.get("error"))
                 continue
-            account.addFriend(userInput - 1)
+            account.addFriend(account.request["received"][userInput-1], "received")
             account.removeRcvdRequest(account.request["received"][userInput-1])
         elif userInput == 2:
             if len(account.request["received"])<1:
@@ -325,7 +344,7 @@ def requestPage(ui: UI, account: Account, api: Client_API):
             if not decline_result.get("success"):
                 ui.showFeedback(decline_result.get("error"))
                 continue
-            account.removeRcvdRequest(account.request["received"][userInput-1])
+            account.removeRcvdRequest(account.request["received"][userInput-1])   
         elif userInput == 3:
             if len(account.request["sent"])<1:
                 ui.showFeedback("You have no pending friend requests at the moment.")
@@ -334,7 +353,8 @@ def requestPage(ui: UI, account: Account, api: Client_API):
             #Send cancel to server
             account.request["sent"].pop(userInput-1)
         elif userInput == 4:
-            return {"currentPage": "relationship"}
+            pageInfo["currentPage"] =  "relationship"
+            return
 
 def checkIfExpired(ui: UI, messages, page, stop_event):
         while not stop_event.is_set():
@@ -343,7 +363,7 @@ def checkIfExpired(ui: UI, messages, page, stop_event):
                     del messages[i]
                     ui.displayMessages(messages)
             time.sleep(1)
-
+            
 def messageReader(ui: UI, receiveBuffer: List[dict], pageInfo: dict, account: Account, conversation: dict, stop_event):
     #constantly checking some message buffer, or triggered by a message arrival event
     while not stop_event.is_set():
@@ -356,7 +376,7 @@ def messageReader(ui: UI, receiveBuffer: List[dict], pageInfo: dict, account: Ac
                 if conversation["currentChat"]==friend:
                     conversation["messageList"].append(msg)
                     page = conversation["page"]
-                    ui.displayMessage.messages[-page*10-1:-(page-1)*10-1]
+                    ui.displayMessage(conversation["messageList"][-page*10-1:-(page-1)*10-1])
                 else:
                     #write message to file
                     account.friendlist["unread"][account.friendlist["friends"].index(friend)]+=1
@@ -373,15 +393,15 @@ def messageReader(ui: UI, receiveBuffer: List[dict], pageInfo: dict, account: Ac
                     ui.displayRequest(account.request["sent"], account.request["received"])
 
             elif packet["type"]=="response":
-                if packet["accepted"]:
-                    account.addFriend(account.request["sent"].index(packet["sender"]))
-                else: 
-                    account.removeFriend(account.request["sent"].index(packet["sender"]))
+                account.addFriend(packet["sender"], "sent")
+                account.removeSentRequest(packet["sender"])
                 #Update relationship page at real time
                 if pageInfo["currentPage"]=="relationship":
                     ui.displayFriend(account.friendlist["friends"], account.friendlist["unread"])
 
             receiveBuffer.pop(0)
 
+
 if __name__ == "__main__":
     curses.wrapper(main)
+

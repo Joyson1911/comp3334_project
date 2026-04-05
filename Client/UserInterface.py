@@ -24,7 +24,7 @@ class UI:
         """
         # Create windows
         self.title_win = curses.newwin(1, self.w, 0, 0)
-        self.msg_win = curses.newwin(self.h - 5, self.w, 0, 0)   # Top: Display chatroom
+        self.msg_win = curses.newwin(self.h - 5, self.w, 1, 0)   # Top: Display chatroom
         self.input_win = curses.newwin(4, self.w, self.h - 4, 0) # Bottom: Input window: input, menu, error
         
         self.msg_win.scrollok(True) #Scrolling = True
@@ -65,6 +65,7 @@ class UI:
 
     def displayRequest(self, sentRequests: List[str], rcvRequests: List[str]):
         #Display sent and received requests in the message window
+        self.lock()
         self.msg_win.clear()
         self.msg_win.addstr(0, 0, "Users who wants to add you:")
         row = 1
@@ -77,6 +78,7 @@ class UI:
             self.msg_win.addstr(row, 0, f"{i+1}: {rcvRequests[i]}")
             row+=1
         self.msg_win.refresh()
+        self.unlock()
 
     def setTitle(self, title: str):
         #Set the title of the feedback message in the first line of message window

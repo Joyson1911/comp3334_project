@@ -26,14 +26,20 @@ class Account:
     def unlock(self):
         self.locked = False
 
-    def addFriend(self, index):
+    def addFriend(self, user: str, request: str):
         self.lock()
+        if request == "sent":
+            index = self.request["sent"].index(user)
+        elif request == "received":
+            index = self.request["received"].index(user)
+            
         self.friendlist["friends"].append(self.request["received"][index])
         self.friendlist["unread"].append(0)
         self.unlock()
 
-    def removeFriend(self, index):
+    def removeFriend(self, user):
         self.lock()
+        index = self.friendlist["friends"].index(user)
         self.friendlist["friends"].pop(index)
         self.friendlist["unread"].pop(index)
         self.unlock()
