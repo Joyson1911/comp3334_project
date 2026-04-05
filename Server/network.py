@@ -2,7 +2,7 @@ import eventlet
 eventlet.monkey_patch()
 
 from flask import Flask, request
-from flask_socketio import SocketIO, emit, disconnect, ConnectionRefusedError
+from flask_socketio import SocketIO, emit
 import secrets
 from datetime import datetime
 from datetime import timedelta
@@ -118,7 +118,8 @@ def handle_register(data):
     if otp != str(pending_otps.get(email)).strip():
         return {'success': False, 'error': 'Invalid OTP'}
     
-    # del pending_otps[email]
+     # OTP is valid, remove it from pending list
+    pending_otps.pop(email, None)
     
     try:
         new_user = User(
@@ -285,7 +286,10 @@ def handle_send_friend_request(data):
     if sid not in online_users:
         return {'success': False, 'error': 'Not authenticated'}
     
+    # User sending the request
     user_email = online_users[sid]
+    
+    # User receiving the request
     friend_email = data.get('user_email')
     
     if not friend_email:
@@ -298,23 +302,48 @@ def handle_send_friend_request(data):
     if friend_email == user_email:
         return {'success': False, 'error': 'Cannot add yourself'}
     
-    if any(f for f in friend_requests if f['from_email'] == user_email and f['to_email'] == friend_email):
+    # Check if request already exists
+    existing_request = FriendRequest.query.filter_by(
+        from_email=user_email, 
+        to_email=friend_email, 
+        status='pending'
+    ).first()
+    if existing_request:
         return {'success': False, 'error': 'Request already sent'}
     
     # Check if already friends
-    if any(f for f in friends if f['user_email'] == user_email and f['friend_email'] == friend_email):
+    is_already_friend = Friendship.query.filter_by(
+        user_email=user_email, 
+        friend_email=friend_email
+    ).first()
+    if is_already_friend:
         return {'success': False, 'error': 'Already friends'}
     
     # Create friend request
-    new_request = {
-        # 'id': len(friend_requests) + 1,
-        'from_email': user_email,
-        'to_email': friend_email,
-        'status': 'pending',
-    }
-    friend_requests.append(new_request)
-    print("Request sent")
+    # new_request = {
+    #     # 'id': len(friend_requests) + 1,
+    #     'from_email': user_email,
+    #     'to_email': friend_email,
+    #     'status': 'pending',
+    # }
+    # friend_requests.append(new_request)
+    # print("Request sent")
     
+    try:
+        new_request = FriendRequest(
+            from_email=user_email,
+            to_email=friend_email,
+            status='pending',
+            created_at=datetime.utcnow()
+        )
+        db.session.add(new_request)
+        db.session.commit()
+        print(f"Friend request from {user_email} to {friend_email} saved to DB")
+        
+    except Exception as e:
+        db.session.rollback()
+        return {'success': False, 'error': f'Database error occurred: {str(e)}'}
+     
     # Real-time notification if recipient is online
     if friend_email in user_sid_map:
         socketio.emit('friend_request_received', {
@@ -444,7 +473,7 @@ def handle_get_public_key(data):
     if not friend:
         return {'success': False, 'error': 'Friend not found'}
     
-    return {'success': True, 'public_key': friend.get('publicKey')}
+    return {'success': True, 'public_key': friend.publicKey}
 
 @socketio.on('send_message')
 def handle_send_message(data):
@@ -506,7 +535,7 @@ def handle_send_message(data):
         delivered = False
         print(f"Stored message for {to_email} (offline)")
     
-    return {'success': True, 'message_id': message['id'], 'status': delivered}
+    return {'success': True, 'message_id': message['id'], 'delivered': delivered}
 
 # ============ Server Startup ============
 

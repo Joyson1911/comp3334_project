@@ -179,7 +179,7 @@ class Client_API:
             if data and data.get('success'):
                 return {"success": True, "otp": data.get('otp')}
             else:
-                return {"success": False, "error": {data.get('error')}}
+                return {"success": False, "error": data.get('error')}
         except Exception as e:
             return {"success": False, "error": f"Network error: {str(e)}"}
     
@@ -194,7 +194,7 @@ class Client_API:
             if data and data.get('success'):
                 return {"success": True}
             else:
-                return {"success": False, "error": {data.get('error')}}
+                return {"success": False, "error": data.get('error')}
         except Exception as e:
             return {"success": False, "error": f"Network error: {str(e)}"}
     
@@ -338,11 +338,14 @@ class Client_API:
             }, timeout=10)
 
             if data and data.get('success'):
-                status = data.get('status', None)
-                if status:
-                    return {"success": True, "status": "delivered"}
+                delivered = data.get('delivered', None)
+                
+                # Online - deliver immediately
+                if delivered:
+                    return {"success": True, "delivered": True, "message_id": data.get('message_id')}
+                # Offline - store for later
                 else:
-                    return {"success": True, "status": "sent"}
+                    return {"success": True, "delivered": False, "message_id": data.get('message_id')}
             else:
                 return {"success": False, "error": f"Failed to send message: {data.get('error')}"}
         except Exception as e:
