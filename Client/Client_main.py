@@ -6,7 +6,7 @@ import sys
 import curses
 from UserInterface import UI
 from storage import SecureStorage
-from session import Account, Recipient
+from session import Account
 from datetime import datetime, timedelta
 from network import Client_API
 from crypto import RSA
@@ -25,7 +25,8 @@ def main(stdscr):
         storage = SecureStorage()
         storage.initiate()
 
-        account = login(ui, api, storage)       
+        account = login(ui, api, storage)
+        storage.set_email(account.user)
             
         
         pageInfo = {"currentPage": "contact"}
@@ -38,10 +39,10 @@ def main(stdscr):
         while True:
             ui.clearMsgWindow()
             if pageInfo["currentPage"]=="contact":
-                pageInfo = contactPage(ui, account, storage)
+                pageInfo = contactPage(ui, account, storage, api)
 
             elif pageInfo["currentPage"]=="chatroom":
-                pageInfo = chatroomPage(ui, account, pageInfo["recipent"], storage)
+                pageInfo = chatroomPage(ui, account, pageInfo["recipent"], storage, conversation, api)
 
             elif pageInfo["currentPage"]=="relationship":
                 pageInfo = relationshipPage(ui, account, api)
@@ -67,6 +68,7 @@ def main(stdscr):
                 stop_event.set()
                 bufferReader.join()
 
+                storage.update_session(account.token, account.user)
                 for i in range(len(account.friendlist["friends"])):
                     storage.set_unread_count(account.friendlist["friends"][i], account.friendlist["unread"][i])
                 account = None
@@ -142,6 +144,7 @@ def loginPage(ui: UI, api: Client_API, storage: SecureStorage):
                 ui.showFeedback(f"Register failed. {register_result.get('error')}")
                 registerLockExpiry = datetime.now() + timedelta(seconds=60)
                 continue
+            storage.set_email(email)
             ui.showFeedback("Account registered successfully.")
             registerLockExpiry = datetime.now() + timedelta(seconds=60)
         elif userInput == 3:
@@ -171,7 +174,7 @@ def login(ui: UI, api: Client_API, storage: SecureStorage):
             return account
    
 
-def contactPage(ui: UI, account: Account, storage: SecureStorage):
+def contactPage(ui: UI, account: Account, storage: SecureStorage, api: Client_API):
     ui.setTitle("Contacts:")
     ui.drawMenu("Menu: 1. Enter chatroom | 2. Manage contacts | 3. Log out | 4. Exit program")
     ui.displayFriend(account.friendlist["friends"], account.friendlist["unread"])
@@ -187,10 +190,13 @@ def contactPage(ui: UI, account: Account, storage: SecureStorage):
         elif userInput == 2:
             return {"currentPage":"relationship"}
         elif userInput == 3:
-            #Clear token
+            storage.remove_session()
+            for i in range(len(account.friendlist["friends"])):
+                storage.set_unread_count(account.friendlist["friends"][i], account.friendlist["unread"][i])
+            api.logout()
+            account = None
             return {"currentPage":"logout"}
         elif userInput == 4:
-            #set token
             userInput = ui.getInteger("Are you sure to exit without logging out? Yes(1)/No(2): ", 3)
             if userInput == 2:
                 continue
@@ -242,6 +248,7 @@ def chatroomPage(ui: UI, account: Account, recipientEmail: str, storage: SecureS
             page[0]+=1
             ui.displayMessage(messages[page*10:page*10+10])
         elif userInput == 6:
+            storage.write_chat_msg(recipientEmail, messages)
             ret = {"currentPage": "contact"}
             break
 
@@ -303,15 +310,22 @@ def requestPage(ui: UI, account: Account, api: Client_API):
                 ui.showFeedback("You have no pending friend requests at the moment.")
                 continue
             userInput = ui.getInteger("Enter request ID: ", len(account.request["received"])+1)
-            #Send accept to server
-            account.addFriend(userInput-1)
+            accept_result = api.respond_to_friend_request(account.request["received"][userInput-1], "accept")
+            if not accept_result.get("success"):
+                ui.showFeedback(accept_result.get("error"))
+                continue
+            account.addFriend(userInput - 1)
+            account.removeRcvdRequest(account.request["received"][userInput-1])
         elif userInput == 2:
             if len(account.request["received"])<1:
                 ui.showFeedback("You have no pending friend requests at the moment.")
                 continue
             userInput = ui.getInteger("Enter request ID: ", len(account.request["received"])+1)
-            #Send decline to server
-            account.removeFriend(userInput-1)
+            decline_result = api.respond_to_friend_request(account.request["received"][userInput-1], "reject")
+            if not decline_result.get("success"):
+                ui.showFeedback(decline_result.get("error"))
+                continue
+            account.removeRcvdRequest(account.request["received"][userInput-1])
         elif userInput == 3:
             if len(account.request["sent"])<1:
                 ui.showFeedback("You have no pending friend requests at the moment.")

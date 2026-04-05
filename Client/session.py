@@ -62,11 +62,3 @@ class Account:
         if userEmail in self.friendlist["friends"]:
              self.removeFriend(self.friendlist["friends"].index(userEmail))
         self.blacklist.append(userEmail)
-
-class Recipient():
-
-    def __init__(self, email: str, publicKey: str, macAddress: str, messages: List):
-        self.email = email
-        self.publicKey = publicKey
-        self.macAddress = macAddress
-        self.messages = messages #message

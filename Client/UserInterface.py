@@ -56,7 +56,6 @@ class UI:
         #Display friend in the message window
         self.lock()
         self.msg_win.clear()
-        self.msg_win.addstr(0, 0, "Friends:")
         for i in range(len(friends)):
             self.msg_win.addstr(i, 0, f"{i+1}: {friends[i]}")
             if unread[i]>0:
