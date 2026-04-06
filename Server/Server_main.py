@@ -210,7 +210,9 @@ def handle_login(data):
         formatted_msgs = []
         for m in offline_msgs_query:
             formatted_msgs.append({
+                'message_id': m.id,
                 'from_email': m.from_email,
+                'to_email': m.to_email,
                 'content': m.content,
                 'timestamp': m.timestamp.isoformat() if m.timestamp else None,
                 'macAddress': m.macAddress
