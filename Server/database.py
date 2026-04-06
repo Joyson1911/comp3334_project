@@ -21,15 +21,14 @@ class Friendship(db.Model):
     
 class BlockedUser(db.Model):
     __tablename__ = 'blocked_users'
-    id = db.Column(db.Integer, primary_key=True)
-    user_email = db.Column(db.String(120), nullable=False)
-    blocked_email = db.Column(db.String(120), nullable=False)
+    # id = db.Column(db.Integer, primary_key=True)
+    user_email = db.Column(db.String(120), primary_key=True)
+    blocked_email = db.Column(db.String(120), primary_key=True)
     
 class FriendRequest(db.Model):
     __tablename__ = 'friend_requests'
-    id = db.Column(db.Integer, primary_key=True)
-    from_email = db.Column(db.String(120), nullable=False)
-    to_email = db.Column(db.String(120), nullable=False)
+    from_email = db.Column(db.String(120), primary_key=True)
+    to_email = db.Column(db.String(120), primary_key=True)
     status = db.Column(db.String(20), default='pending') # pending, accepted, rejected
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     

@@ -24,13 +24,14 @@ class Client_API:
         self.user_email = None
         self.is_authenticated = False
         self.is_connected = False
-        self.receiveBuffer = []
+        self.receiveBuffer = None 
         
         # Callback functions for application layer
         self.on_message = lambda msg: self.receiveBuffer.append({'type': 'message', 'content': Message(msg.get('id'),
                                                                                                        msg.get('content'),
                                                                                                        msg.get('from_email'),
                                                                                                        msg.get('to_email'),
+                                                                                                    #    self.user_email,
                                                                                                        True, None)})  # Called when new message received
         
         self.on_friend_request = lambda req: self.receiveBuffer.append({'type': 'request', 'sender': req.get('from_email'), 'receiver': req.get('to_email')})       # Called when friend request received
@@ -82,10 +83,6 @@ class Client_API:
         @self.sio.on('offline_messages')
         def on_offline_messages(messages):
             """Handle offline messages when user connects"""
-            print(f"Received {len(messages)} offline messages")
-            # if self.on_offline_messages:
-            #     self.on_offline_messages(messages)
-            # Also trigger individual message callbacks
             for msg in messages:
                 if self.on_message:
                     self.on_message(msg)
@@ -129,7 +126,6 @@ class Client_API:
         Starts background thread to handle WebSocket connection
         """
         def connect_thread():
-
             self.sio.connect(self.server_url, transports=['websocket'])
             self.sio.wait()  # Block and maintain connection
 
@@ -147,24 +143,6 @@ class Client_API:
             self.is_connected = False
     
     # ============ Authentication Methods ============
-    
-    # Dont remove !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    # def otp_request(self, email: str, action: str, callback: Callable = None):
-    #     """
-    #     Request OTP for registration or login
-    #     """
-    #     def on_response(data):
-    #         if data.get('success'):
-    #             print(f"OTP sent to {email}")
-    #         else:
-    #             print(f"Failed to send OTP: {data.get('error')}")
-    #         if callback:
-    #             callback(data)
-                
-    #     self.sio.emit('otp_request', {
-    #         'email': email,
-    #         'action': action
-    #         }, callback=on_response)
     
     # For testing purposes, return OTP directly !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     def otp_request(self, email: str, action: str):
@@ -218,7 +196,7 @@ class Client_API:
             
             if data and data.get('success'):
                 self.token = data['access_token']
-                self.user_email = email
+                self.user_email = data['email']
                 self.is_authenticated = True
                 friends_list = data.get('friends_list', [])
                 blocked_list = data.get('blocked_list', [])
