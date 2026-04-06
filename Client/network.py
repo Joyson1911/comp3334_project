@@ -24,10 +24,10 @@ class Client_API:
         self.user_email = None
         self.is_authenticated = False
         self.is_connected = False
-        self.receiveBuffer = None 
+        self.receiveBuffer = [] 
         
         # Callback functions for application layer
-        self.on_message = lambda msg: self.receiveBuffer.append({'type': 'message', 'content': Message(msg.get('id'),
+        self.on_message = lambda msg: self.receiveBuffer.append({'type': 'message', 'content': Message(msg.get('message_id'),
                                                                                                        msg.get('content'),
                                                                                                        msg.get('from_email'),
                                                                                                        msg.get('to_email'),

@@ -251,7 +251,7 @@ def handle_login(data):
     return {
         'success': True, 
         'access_token': token,
-        'user': email, 
+        'email': email, 
         'token_expiry_time': token_expiry_time.isoformat(),
         'friends_list': [f.friend_email for f in user_friends],
         'blocked_list': [b.blocked_email for b in user_blocked]
