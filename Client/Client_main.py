@@ -6,7 +6,7 @@ import sys
 import curses
 from UserInterface import UI
 from storage import SecureStorage
-from session import Account
+from session import Account, getMacAddress
 from datetime import datetime, timedelta
 from network import Client_API
 from crypto import RSA
@@ -102,7 +102,7 @@ def loginPage(ui: UI, api: Client_API, storage: SecureStorage):
             if verCode != otp:
                 ui.showFeedback("Login failed. Incorrect verification code.")
                 continue
-            login_result = api.login(None, email, password, verCode)
+            login_result = api.login(None, email, password, verCode, getMacAddress(), storage.client_info.rsa.pub_key_str())
             if not login_result.get("success"):
                 ui.showFeedback(f"Login failed. {login_result.get("error")}")
                 continue
@@ -219,7 +219,7 @@ def chatroomPage(ui: UI, account: Account, storage: SecureStorage, conversation:
     recipientEmail = conversation["currentChat"]
     recipientKey =  storage.get_public_key(recipientEmail)
     latestKey = api.get_public_key(recipientEmail)
-    if latestKey!=recipientKey:
+    if latestKey!=recipientKey and recipientKey!=None:
         ui.showFeedback("WARNING: This user has switched to a new device. Are you sure to continue?")
         userInput = ui.getInteger("Continue with warning(1), Leave the chatroom(2): ", 3)
         if userInput == 2:
@@ -231,13 +231,13 @@ def chatroomPage(ui: UI, account: Account, storage: SecureStorage, conversation:
         
     #storage.save_public_key(recipientEmail, latestKey)
     account.friendlist["unread"][account.friendlist["friends"].index(recipientEmail)] = 0
-    lifetime = -1
+    lifetime = None
     page = [1]
     conversation["page"] = page[0]
     messages = conversation["messageList"]
     #Set thread for checking message expiry
     stop_event = threading.Event()
-    expiryChecker = threading.Thread(target=checkIfExpired, args=(ui, messages, page, stop_event))
+    expiryChecker = threading.Thread(target=checkIfExpired, args=(ui, messages, stop_event, conversation))
     expiryChecker.start()
     a = -page[0]*10-1
     b = len(messages)-10*(page[0]-1)
@@ -250,7 +250,7 @@ def chatroomPage(ui: UI, account: Account, storage: SecureStorage, conversation:
         userInput = ui.getInteger("Enter: ", 7)
         if userInput == 1:
             content = ui.getString("Enter message: ")
-            msg = Message(None, content, account.user, recipientEmail, None, None)
+            msg = Message(None, content, account.user, recipientEmail, None, None if lifetime==None else datetime.now()+timedelta(seconds=lifetime))
             send_result = api.send_message(recipientEmail, msg.message)
             if not send_result.get("success"):
                 ui.showFeedback(send_result.get("error"))
@@ -263,9 +263,9 @@ def chatroomPage(ui: UI, account: Account, storage: SecureStorage, conversation:
             ui.displayMessage(messages[a:b])
         elif userInput == 2:
             ui.showFeedback("Units of message lifetime are s(second), m(minute) and h(hour). Min: 30s, Max: 24h")
-            life = ui.getTime("Enter message lifetime: ")
+            lifetime = ui.getTime("Enter message lifetime: ")
         elif userInput == 3:
-            lifetime = -1
+            lifetime = None
         elif userInput == 4:
             page[0]-=1
             a = -page[0]*10-1
@@ -368,12 +368,14 @@ def requestPage(ui: UI, account: Account, api: Client_API, pageInfo: dict):
             pageInfo["currentPage"] =  "relationship"
             return
 
-def checkIfExpired(ui: UI, messages, page, stop_event):
+def checkIfExpired(ui: UI, messages: List[Message], stop_event, conversation: dict):
         while not stop_event.is_set():
             for i in range(len(messages)-1, -1, -1):
                 if messages[i].isExpired():
                     del messages[i]
-                    ui.displayMessages(messages)
+                    a = -conversation["page"]*10-1
+                    b = len(conversation["messageList"])-10*(conversation["page"]-1)
+                    ui.displayMessage(conversation["messageList"][a:b])
             time.sleep(1)
             
 def messageReader(ui: UI, receiveBuffer: List[dict], pageInfo: dict, account: Account, conversation: dict, stop_event, storage: SecureStorage):

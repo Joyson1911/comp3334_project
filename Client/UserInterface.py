@@ -2,9 +2,11 @@ import curses
 from typing import List
 
 class UI:
-
+    
     def __init__(self, stdscr):
         self.stdscr = stdscr
+        curses.start_color()
+        curses.init_pair(1, curses.COLOR_RED, curses.COLOR_BLACK) 
         curses.curs_set(1)  #Show cursor
         curses.echo()       #Show user typing: on
 
@@ -29,6 +31,7 @@ class UI:
         
         self.msg_win.scrollok(True) #Scrolling = True
 
+        self.typing_point = [self.h, 0] 
         # Divider line
         self.input_win.hline(0, 0, curses.ACS_HLINE, 10)
         self.input_win.refresh()
@@ -41,13 +44,18 @@ class UI:
     def unlock(self):
         self.locked = False
 
-    def displayMessage(self, messages):
+    def displayMessage(self, messages: List):
         #Display messages in the message window
         self.lock()
         self.msg_win.clear()
         for i in range(len(messages)):
-            self.msg_win.addstr(i, 0, f"{messages[i].sender}: {messages[i].message}")
+            if messages[i].delivered:
+                self.msg_win.addstr(i, 0, f"{messages[i].sender}: {messages[i].message}")
+            else:
+                self.msg_win.addstr(i, 0, f"{messages[i].sender}: {messages[i].message}", curses.color_pair(1))
         self.msg_win.refresh()
+        self.input_win.move(self.typing_point[0], self.typing_point[1])
+        self.input_win.refresh()
         self.unlock()
 
     def displayFriend(self, friends: List[str], unread: List[int]):
@@ -59,6 +67,8 @@ class UI:
             if unread[i]>0:
                 self.msg_win.addstr(f" ({unread[i]})") 
         self.msg_win.refresh()
+        self.input_win.move(self.typing_point[0], self.typing_point[1])
+        self.input_win.refresh()
         self.unlock()
 
     def displayRequest(self, sentRequests: List[str], rcvRequests: List[str]):
@@ -76,6 +86,8 @@ class UI:
             self.msg_win.addstr(row, 0, f"{i+1}: {rcvRequests[i]}")
             row+=1
         self.msg_win.refresh()
+        self.input_win.move(self.typing_point[0], self.typing_point[1])
+        self.input_win.refresh()
         self.unlock()
 
     def setTitle(self, title: str):
@@ -110,11 +122,11 @@ class UI:
     def getInteger(self, inputMessage: str, limit: int):
         #Display the input prompt in the line 3 of input window
         self.input_win.addstr(3, 0, inputMessage)
-        y, x = self.input_win.getyx()
+        self.typing_point = list(self.input_win.getyx())
         self.input_win.refresh()
         valid = False
         while not valid: 
-            self.input_win.move(y, x)
+            self.input_win.move(self.typing_point[0], self.typing_point[1])
             self.input_win.clrtoeol()
             self.input_win.refresh()
             try:
@@ -132,6 +144,7 @@ class UI:
 
     def getString(self, inputMessage):
         self.input_win.addstr(3, 0, inputMessage)
+        self.typing_point = list(self.input_win.getyx())
         self.input_win.clrtoeol()
         self.input_win.refresh()
         return  self.input_win.getstr().decode()
@@ -153,7 +166,7 @@ class UI:
                     self.showFeedback("Invalid input. Enter a number + an unit (s/m/h)")
                     continue
                 time = value * units[unit]
-                if time<30 or time>86400:
+                if time<5 or time>86400:
                     self.showFeedback("Message lifetime must be between 30s and 24h.")
                     continue
                 return time
