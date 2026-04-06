@@ -63,7 +63,7 @@ class MsgStore:
         return cls(msg.id, msg.message, msg.sender != self_email, msg.delivered, msg.delete_time)
     
     def to_Message(self, self_email: str, other_email: str) -> Message:
-        return Message(self.id, self.content, self_email, other_email, bool(self.delivered), self.delete_time)
+        return Message(self.id, self.content, other_email if self.other_sent else self_email, self_email if self.other_sent else other_email, bool(self.delivered), self.delete_time)
         
 class SecureStorage:
     CURDIR = Path(__file__).absolute().parent
