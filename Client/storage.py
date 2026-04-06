@@ -1,16 +1,11 @@
-# from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-# from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
-# from cryptography.exceptions import InvalidTag
 from datetime import datetime
 import json
 from messaging import Message
-from typing import Literal
-# from os import urandom, remove, mkdir
-from os.path import dirname
+from typing import Literal, Self
 from pathlib import Path
 import uuid
 
-from crypto import RSA, RSAPublicKey
+from crypto import RSA, RSAPublicKey, encrypt_with_pw, decrypt_with_pw, SHA256
             
 class Client:
     """Store format:  
@@ -27,7 +22,7 @@ class Client:
         self.last_email = email
         
     @classmethod
-    def from_file(cls, path: Path):
+    def from_file(cls, path: Path) -> Self:
         data = json.loads(path.read_text())
         
         token = data['session_token']
@@ -64,7 +59,7 @@ class MsgStore:
         return f'{self.id} {self.other_sent} {self.delivered} {'-' if self.delete_time == None else self.delete_time.strftime("%d/%m/%Y-%H:%M:%S")} {self.content + '\n'}'
     
     @classmethod
-    def from_Message(cls, msg: Message, self_email: str):
+    def from_Message(cls, msg: Message, self_email: str) -> Self:
         return cls(msg.id, msg.message, msg.sender != self_email, msg.delivered, msg.delete_time)
     
     def to_Message(self, self_email: str, other_email: str) -> Message:
@@ -86,8 +81,9 @@ class SecureStorage:
         self.email = email
         self.user_msg_dir = ss.STORE_DIR.joinpath(email)
         self.create_if_not_exist(self.user_msg_dir, True)
+        self.enc_pw = str(uuid.getnode()) + email
     
-    def initiate(self):
+    def initiate(self, salt: str = 'COMP3334'):
         """Initiate the security storage, the client info of the device. 
 
         Parameters
@@ -97,14 +93,14 @@ class SecureStorage:
         token : str
             Available session token.
         """
-            
         if not ss.CLIENT_FILE.exists():
-            ss.create_if_not_exist(self.STORE_DIR, True)
             ss.create_if_not_exist(ss.CLIENT_FILE, False)
             self.client_info = Client(RSA.create(), None, None)
             self.save_client_info()
         else:
             self._load_client()
+            
+        self.salt = SHA256().compute('salt').encode()
             
     def get_unread_count(self, other_email: str) -> int:
         msg_path = list(self.user_msg_dir.glob(f'{other_email}_*'))
@@ -140,9 +136,10 @@ class SecureStorage:
         if len(msg_path) <= 0: return []
         
         messages = []
-        with msg_path[0].open('r') as msg_f:
+        with msg_path[0].open('rb') as msg_f:
             for line in msg_f.readlines():
-                if line == '': continue
+                if line == b'': continue
+                line = decrypt_with_pw(line, self.enc_pw)
                 items = line.split(' ', 4)
                 messages.append(MsgStore(
                     int(items[0]),
@@ -172,8 +169,9 @@ class SecureStorage:
         
         store_msg = list(map(lambda m: str(self._to_msg_store(m)), messages))
 
-        with msg_path[0].open(f'{mode}') as msg_f:
-            msg_f.writelines(store_msg)
+        with msg_path[0].open(f'{mode}b') as msg_f:
+            for m in store_msg:
+                msg_f.write(encrypt_with_pw(m, self.enc_pw, self.salt))
             
     def append_msgs(self, email: str, msg_list: list[Message]):
         self.write_chat_msg(email, msg_list, 'a')

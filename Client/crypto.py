@@ -1,8 +1,9 @@
-#from __future__ import annotations
-from cryptography.hazmat.primitives.asymmetric import rsa, padding, types
-from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPublicKey
-from cryptography.hazmat.primitives import serialization as ks, hashes
 from cryptography.exceptions import InvalidSignature, InvalidKey
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import serialization as ks, hashes
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPublicKey
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from typing import Self
 from enum import Enum
 
@@ -66,6 +67,22 @@ class RSA():
     
     @staticmethod
     def read_pub_key(pub_key_str: str) -> RSAPublicKey:
+        """Converts a public key string to RSAPublickey object.
+
+        Parameters
+        ----------
+        pub_key_str : str
+            A PEM public key string.
+
+        Returns
+        -------
+        RSAPublicKey
+
+        Raises
+        ------
+        InvalidKey
+            If inputted string is not a PEM public key string.
+        """
         public_key = ks.load_pem_public_key(pub_key_str.encode())
         if not isinstance(public_key, RSAPublicKey): 
             raise InvalidKey(f'Public key read is not a RSA public key.')
@@ -283,3 +300,72 @@ class SHA256:
         actual_hash = self.compute(data)
         return actual_hash == expected_hash
     
+SALT_LEN = 16
+
+def encrypt_with_pw(text: str, password: str, salt: bytes | None = None) -> bytes:
+    """Encrypts a text with provided key and salt shifting, salt show be exactly `crypto.SALT_LEN` long.
+
+    Parameters
+    ----------
+    text : str
+        Text to be encrypted.
+    password : str
+        Password encrypting the text.
+    salt : bytes | None, optional
+        The encryption shifting bytes, by default None for auto generation.
+
+    Returns
+    -------
+    bytes
+        Encrypted bytes.
+    """
+    from os import urandom
+    if salt == None:
+        salt = urandom(SALT_LEN)
+    elif len(salt) < SALT_LEN:
+        salt = salt + urandom(SALT_LEN - len(salt))
+    elif len(salt) > SALT_LEN:
+        salt = salt[:SALT_LEN]
+    
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=480000,
+    )
+    key = base64.urlsafe_b64encode(kdf.derive(password.encode()))
+    return salt + Fernet(key).encrypt(text.encode())
+
+def decrypt_with_pw(ciphertext: bytes, password: str) -> str:
+    """Decrypts the cipher text with given password.
+
+    Parameters
+    ----------
+    ciphertext : bytes
+        Ciphertext to be decrypt.
+    password : str
+        Key to decrypt, raises InvalidKey exception if incorrect.
+        
+    Exceptions:
+    InvalidKey
+        Raises if provided key is incorrect.
+
+    Returns
+    -------
+    str
+        decrypted message string.
+    """
+    salt = ciphertext[:SALT_LEN]
+    ciphertext = ciphertext[SALT_LEN:]
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=480000,
+    )
+    key = base64.urlsafe_b64encode(kdf.derive(password.encode()))
+    
+    try:
+        return Fernet(key).decrypt(ciphertext).decode()
+    except Exception:
+        raise InvalidKey('The provided password is incorrect.')
