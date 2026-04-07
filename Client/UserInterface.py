@@ -31,7 +31,7 @@ class UI:
         
         self.msg_win.scrollok(True) #Scrolling = True
 
-        self.typing_point = [self.h, 0] 
+        self.typing_point = [3, 0] 
         # Divider line
         self.input_win.hline(0, 0, curses.ACS_HLINE, 10)
         self.input_win.refresh()

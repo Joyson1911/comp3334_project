@@ -223,6 +223,7 @@ def contactPage(ui: UI, account: Account, storage: SecureStorage, api: Client_AP
             return
         elif userInput == 3:
             storage.remove_session()
+            storage.save_client_info()
             for i in range(len(account.friendlist["friends"])):
                 storage.set_unread_count(account.friendlist["friends"][i], account.friendlist["unread"][i])
             api.logout()
@@ -275,7 +276,7 @@ def chatroomPage(ui: UI, account: Account, storage: SecureStorage, conversation:
         userInput = ui.getInteger("Enter: ", 7)
         if userInput == 1:
             content = ui.getString("Enter message: ")
-            msg = Message(None, content, account.user, recipientEmail, None, None if lifetime==None else datetime.now()+timedelta(seconds=lifetime))
+            msg = Message(None, content, account.user, recipientEmail, None, None)
             cipher = RSA.encrypt_msg(msg.message.encode(), latestKey)
             send_result = api.send_message(recipientEmail, cipher)
             if not send_result.get("success"):
@@ -283,6 +284,7 @@ def chatroomPage(ui: UI, account: Account, storage: SecureStorage, conversation:
                 continue
             msg.delivered = send_result.get("delivered")
             msg.id = send_result.get("message_id")
+            msg.delete_time = send_result.get("")
             messages.append(msg)
             end = len(messages)- ((page [0]- 1) * 10)
             start = max(0, end - 10)
