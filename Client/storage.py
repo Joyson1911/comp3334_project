@@ -177,7 +177,7 @@ class SecureStorage:
 
         with msg_path[0].open(f'{mode}b') as msg_f:
             for m in store_msg:
-                msg_f.write(encrypt_with_pw(m, self.enc_pw, self.salt))
+                msg_f.write(encrypt_with_pw(m, self.enc_pw, self.salt)+b'\n')
             
     def append_msgs(self, email: str, msg_list: list[Message]):
         self.write_chat_msg(email, msg_list, 'a')

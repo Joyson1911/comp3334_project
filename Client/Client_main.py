@@ -9,7 +9,7 @@ from storage import SecureStorage
 from session import Account, getMacAddress
 from datetime import datetime, timedelta
 from network import Client_API
-from crypto import RSA
+from crypto import RSA, SHA256
 from typing import List
 import re
 
@@ -111,7 +111,8 @@ def loginPage(ui: UI, api: Client_API, storage: SecureStorage):
             if verCode != otp:
                 ui.showFeedback("Login failed. Incorrect verification code.")
                 continue
-            login_result = api.login(None, email, password, verCode, getMacAddress(), storage.client_info.rsa.pub_key_str())
+            digest = SHA256().compute(password)
+            login_result = api.login(None, email, digest, verCode, getMacAddress(), storage.client_info.rsa.pub_key_str())
             if not login_result.get("success"):
                 ui.showFeedback(f"Login failed. {login_result.get("error")}")
                 continue
@@ -161,7 +162,8 @@ def loginPage(ui: UI, api: Client_API, storage: SecureStorage):
                 
                 ui.showFeedback("Passwords do not match. Please try again.")
                 
-            register_result = api.register(email, password1, verCode)
+            digest = SHA256().compute(password1)
+            register_result = api.register(email, digest, verCode)
             if not register_result.get("success"):
                 ui.showFeedback(f"Register failed. {register_result.get('error')}")
                 registerLockExpiry = datetime.now() + timedelta(seconds=60)
@@ -175,10 +177,10 @@ def loginPage(ui: UI, api: Client_API, storage: SecureStorage):
 def login(ui: UI, api: Client_API, storage: SecureStorage):
         try: 
             token = storage.client_info.token
+            #token = ui.getString("Enter token: ")
             if token == None:
                 raise Exception("Auto login failed.")
             #try auto login
-            
             login_result = api.login(token, None, None, None, getMacAddress(), storage.client_info.rsa.pub_key_str())
             if  login_result.get("success")==False:
                 raise Exception("Auto login failed.")
@@ -274,7 +276,8 @@ def chatroomPage(ui: UI, account: Account, storage: SecureStorage, conversation:
         if userInput == 1:
             content = ui.getString("Enter message: ")
             msg = Message(None, content, account.user, recipientEmail, None, None if lifetime==None else datetime.now()+timedelta(seconds=lifetime))
-            send_result = api.send_message(recipientEmail, msg.message)
+            cipher = RSA.encrypt_msg(msg.message.encode(), latestKey)
+            send_result = api.send_message(recipientEmail, cipher)
             if not send_result.get("success"):
                 ui.showFeedback(send_result.get("error"))
                 continue
@@ -420,6 +423,7 @@ def messageReader(ui: UI, receiveBuffer: List[dict], pageInfo: dict, account: Ac
             packet = receiveBuffer[0]
             if packet["type"]=="message":
                 msg = packet["content"]
+                msg.message = storage.client_info.rsa.decrypt_msg(packet["content"].message).decode()
                 friend = msg.sender if msg.recipient==account.user else msg.recipient
                 if conversation["currentChat"]==friend:
                     conversation["messageList"].append(msg)
@@ -457,6 +461,7 @@ def messageReader(ui: UI, receiveBuffer: List[dict], pageInfo: dict, account: Ac
 
 def isValidEmail(email: str):
 
+    return True
     regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     
     if re.match(regex, email):
@@ -464,6 +469,8 @@ def isValidEmail(email: str):
     return False
 
 def isValidPassword(password: str) -> bool:
+
+    return True
     if not (12 <= len(password) <= 64):
         return False
     
