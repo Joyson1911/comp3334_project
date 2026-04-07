@@ -155,32 +155,57 @@ def handle_login(data):
     
     if token and token in sessions:
         # Token-based authentication (auto-login)
-        cached_user = sessions[token]
+        # cached_user = sessions[token]
         
-        if token_map[token] > datetime.now():
+        # if token_map[token] > datetime.now():
             
-            # Update current connection mapping
-            user = cached_user
-            email = cached_user.email
+        #     # Update current connection mapping
+        #     user = cached_user
+        #     email = cached_user.email
             
-            if email and user_sid_map.get(email):
-                return {'success': False, 'error': 'User already logged in from another device'}
+        #     if email and user_sid_map.get(email):
+        #         return {'success': False, 'error': 'User already logged in from another device'}
     
-            sid = request.sid
-            online_users[sid] = email
-            user_sid_map[email] = sid
+        #     sid = request.sid
+        #     online_users[sid] = email
+        #     user_sid_map[email] = sid
             
-            print(f"Auto-login successful: {email}")
+        #     print(f"Auto-login successful: {email}")
             
-            sessions[token] = cached_user
+        #     sessions[token] = cached_user
             
-            token_expiry_time = token_map[token]    
-            
-        else:
-            # remove expired token
-            if token in token_map:
-                del token_map[token]
+        #     token_expiry_time = token_map[token]
+        
+        # else:
+        #     # remove expired token
+        #     if token in token_map:
+        #         del token_map[token]
+        #     return {'success': False, 'error': 'Invalid or expired token'}
+        
+        user = sessions[token]
+        email = user.email
+        
+        # Validate token expiry
+        expiry_time = token_map.get(token)
+        if not expiry_time or expiry_time <= datetime.now():
+            # Token expired, remove session and token
+            sessions.pop(token, None)
+            token_map.pop(token, None)
             return {'success': False, 'error': 'Invalid or expired token'}
+        
+        if email and user_sid_map.get(email):
+            return {'success': False, 'error': 'User already logged in from another device'}
+        
+        # Update current connection mapping
+        sid = request.sid
+        online_users[sid] = email
+        user_sid_map[email] = sid
+        
+        token_expiry_time = expiry_time
+        
+        print(f"Auto-login successful: {email}")    
+            
+
         
     else:        
         # Credential-based authentication
