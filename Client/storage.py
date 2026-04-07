@@ -60,10 +60,16 @@ class MsgStore:
     
     @classmethod
     def from_Message(cls, msg: Message, self_email: str) -> Self:
-        return cls(msg.id, msg.message, msg.sender != self_email, msg.delivered, msg.delete_time)
+        return cls(-1 if msg.id == None else msg.id, msg.message, msg.sender != self_email, msg.delivered, msg.delete_time)
     
     def to_Message(self, self_email: str, other_email: str) -> Message:
-        return Message(self.id, self.content, other_email if self.other_sent else self_email, self_email if self.other_sent else other_email, bool(self.delivered), self.delete_time)
+        return Message(
+                None if self.id == -1 else self.id,
+                self.content, other_email if self.other_sent else self_email,
+                self_email if self.other_sent else other_email,
+                bool(self.delivered),
+                self.delete_time
+            )
         
 class SecureStorage:
     CURDIR = Path(__file__).absolute().parent
@@ -142,7 +148,7 @@ class SecureStorage:
                 line = decrypt_with_pw(line, self.enc_pw)
                 items = line.split(' ', 4)
                 messages.append(MsgStore(
-                    int(items[0]),
+                    int(-1 if items[0] == 'None' else items[0]),
                     items[4].strip('\n'), 
                     bool(int(items[1])), 
                     bool(int(items[2])),
