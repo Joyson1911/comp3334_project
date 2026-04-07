@@ -114,7 +114,7 @@ def handle_register(data):
     if otp != str(pending_otps.get(email)).strip():
         return {'success': False, 'error': 'Invalid OTP'}
     
-     # OTP is valid, remove it from pending list
+    # OTP is valid, remove it from pending list
     pending_otps.pop(email, None)
     
     try:
@@ -162,6 +162,10 @@ def handle_login(data):
             # Update current connection mapping
             user = cached_user
             email = cached_user.email
+            
+            if email and user_sid_map.get(email):
+                return {'success': False, 'error': 'User already logged in from another device'}
+    
             sid = request.sid
             online_users[sid] = email
             user_sid_map[email] = sid
@@ -174,8 +178,8 @@ def handle_login(data):
             
         else:
             # remove expired token
-            # if token in token_map:
-            #     del token_map[token]
+            if token in token_map:
+                del token_map[token]
             return {'success': False, 'error': 'Invalid or expired token'}
         
     else:        
@@ -189,6 +193,9 @@ def handle_login(data):
         # Validate OTP
         if not otp or otp != str(pending_otps.get(email)).strip():
             return {'success': False, 'error': 'Invalid OTP'}
+        
+        if email and user_sid_map.get(email):
+            return {'success': False, 'error': 'User already logged in from another device'}
         
         # OTP is valid, remove it from pending list
         pending_otps.pop(email, None)
