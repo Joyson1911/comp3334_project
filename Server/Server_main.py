@@ -589,6 +589,7 @@ def handle_send_message(data):
     lifetime = data.get('lifetime', None)
     
     if lifetime is not None: 
+        print("Lifetime")
         del_time = datetime.now()+timedelta(seconds=lifetime)
         del_time = del_time.strftime("%Y-%m-%d %H:%M:%S")
     else:
@@ -653,7 +654,8 @@ def handle_send_message(data):
         return {
             'success': True, 
             'message_id': new_msg.id,
-            'delivered': delivered
+            'delivered': delivered,
+            'del_time': del_time
         }
         
     except Exception as e:

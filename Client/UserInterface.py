@@ -166,7 +166,7 @@ class UI:
                     self.showFeedback("Invalid input. Enter a number + an unit (s/m/h)")
                     continue
                 time = value * units[unit]
-                if time<30 or time>86400:
+                if time<5 or time>86400:
                     self.showFeedback("Message lifetime must be between 30s and 24h.")
                     continue
                 return time
