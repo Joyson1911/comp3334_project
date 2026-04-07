@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from network import Client_API
 from crypto import RSA
 from typing import List
+import re
 
 def main(stdscr):
 
@@ -76,7 +77,8 @@ def main(stdscr):
                 for i in range(len(account.friendlist["friends"])):
                     storage.set_unread_count(account.friendlist["friends"][i], account.friendlist["unread"][i])
                 account = None
-                
+                storage.save_client_info()
+
                 api.disconnect()
                 sys.exit(0)
 
@@ -89,6 +91,10 @@ def loginPage(ui: UI, api: Client_API, storage: SecureStorage):
         userInput = ui.getInteger("Enter: ", 4)
         if userInput == 1:
             email = ui.getString("Email: ")
+            email = email.strip().lower()
+            if not isValidEmail(email):
+                ui.showFeedback("Invalid email. Please try again.")
+                continue
             #Request OTP from server
             otp_result = api.otp_request(email, "login")
             if not otp_result.get("success"):
@@ -99,6 +105,9 @@ def loginPage(ui: UI, api: Client_API, storage: SecureStorage):
             #Read password and verification code
             verCode = ui.getString("Verification Code: ")
             password = ui.getPassword("Password: ")
+            if not password:
+                ui.showFeedback("Password can not be empty.")
+                continue
             if verCode != otp:
                 ui.showFeedback("Login failed. Incorrect verification code.")
                 continue
@@ -124,6 +133,10 @@ def loginPage(ui: UI, api: Client_API, storage: SecureStorage):
                 ui.showFeedback(f"Registration locked. Please try again in {(registerLockExpiry - datetime.now()).total_seconds()} seconds.") 
                 continue
             email = ui.getString("Email: ")
+            email = email.strip().lower()
+            if not isValidEmail(email):
+                ui.showFeedback("Invalid email. Please try again.")
+                continue
             #Request otp from server
             otp_result = api.otp_request(email, "register")
             if not otp_result.get("success"):
@@ -138,10 +151,14 @@ def loginPage(ui: UI, api: Client_API, storage: SecureStorage):
             ui.showFeedback("Email verified.")
             while True:
                 password1 = ui.getPassword("Set password: ")
+                if not isValidPassword(password1):
+                    ui.showFeedback("Password must has a length between 12 to 64, with characters of both cases, digit and special character.")
+                    continue
                 password2 = ui.getPassword("Enter password again: ")
                 if password1 == password2:
                     ui.showFeedback("Passwords match.")
                     break
+                
                 ui.showFeedback("Passwords do not match. Please try again.")
                 
             register_result = api.register(email, password1, verCode)
@@ -162,10 +179,12 @@ def login(ui: UI, api: Client_API, storage: SecureStorage):
                 raise Exception("Auto login failed.")
             #try auto login
             
-            login_result = api.login(token, None, None, None)
+            login_result = api.login(token, None, None, None, getMacAddress(), storage.client_info.rsa.pub_key_str())
             if  login_result.get("success")==False:
                 raise Exception("Auto login failed.")
+            
             userEmail = storage.client_info.last_email
+            storage.set_email(userEmail)
             token = login_result.get("token")
             friends = login_result.get("friends_list")
             blacklist = login_result.get("blacklist")
@@ -218,8 +237,12 @@ def contactPage(ui: UI, account: Account, storage: SecureStorage, api: Client_AP
 def chatroomPage(ui: UI, account: Account, storage: SecureStorage, conversation: dict, api: Client_API, pageInfo: dict):
     recipientEmail = conversation["currentChat"]
     recipientKey =  storage.get_public_key(recipientEmail)
-    latestKey = api.get_public_key(recipientEmail)
-    if latestKey!=recipientKey and recipientKey!=None:
+    key_result = api.get_public_key(recipientEmail)
+    if not key_result.get("success"):
+        ui.showFeedback(key_result.get("error"))
+        return
+    latestKey = key_result.get("public_key")
+    if recipientKey!=None and latestKey!=RSA.get_pub_str(recipientKey):
         ui.showFeedback("WARNING: This user has switched to a new device. Are you sure to continue?")
         userInput = ui.getInteger("Continue with warning(1), Leave the chatroom(2): ", 3)
         if userInput == 2:
@@ -229,8 +252,8 @@ def chatroomPage(ui: UI, account: Account, storage: SecureStorage, conversation:
             conversation["currentChat"] = None
             return
         
-    #storage.save_public_key(recipientEmail, latestKey)
-    account.friendlist["unread"][account.friendlist["friends"].index(recipientEmail)] = 0
+    storage.save_public_key(recipientEmail, RSA.read_pub_key(latestKey))
+    account.clearUnread(recipientEmail)
     lifetime = None
     page = [1]
     conversation["page"] = page[0]
@@ -239,13 +262,13 @@ def chatroomPage(ui: UI, account: Account, storage: SecureStorage, conversation:
     stop_event = threading.Event()
     expiryChecker = threading.Thread(target=checkIfExpired, args=(ui, messages, stop_event, conversation))
     expiryChecker.start()
-    a = -page[0]*10-1
-    b = len(messages)-10*(page[0]-1)
+    end = len(messages)- ((page [0]- 1) * 10)
+    start = max(0, end - 10)
     ui.drawMenu("Menu: 1. Send message | 2. Set message lifetime | 3. Remove message lifetime  | 4. Last page | 5. Next page | 6. Return to contacts")
-    ui.displayMessage(messages[a:b])
+    ui.displayMessage(messages[start:end])
     while True:
-        a = -page[0]*10-1
-        b = len(messages)-10*(page[0]-1)
+        end = len(messages)- ((page [0]- 1) * 10)
+        start = max(0, end - 10)
         ui.setTitle(f"Chatroom with {recipientEmail}: Page {page[0]}")
         userInput = ui.getInteger("Enter: ", 7)
         if userInput == 1:
@@ -258,27 +281,38 @@ def chatroomPage(ui: UI, account: Account, storage: SecureStorage, conversation:
             msg.delivered = send_result.get("delivered")
             msg.id = send_result.get("message_id")
             messages.append(msg)
-            a = -page[0]*10-1
-            b = len(messages)-10*(page[0]-1)
-            ui.displayMessage(messages[a:b])
+            end = len(messages)- ((page [0]- 1) * 10)
+            start = max(0, end - 10)
+            ui.displayMessage(messages[start:end])
         elif userInput == 2:
             ui.showFeedback("Units of message lifetime are s(second), m(minute) and h(hour). Min: 30s, Max: 24h")
             lifetime = ui.getTime("Enter message lifetime: ")
         elif userInput == 3:
             lifetime = None
         elif userInput == 4:
+            if page[0]==1:
+                ui.showFeedback("You are at the first page.")
+                continue
             page[0]-=1
-            a = -page[0]*10-1
-            b = len(messages)-10*(page[0]-1)
-            ui.displayMessage(messages[a:b])
+            end = len(messages)- ((page [0]- 1) * 10)
+            start = max(0, end - 10)
+            ui.displayMessage(messages[start:end])
         elif userInput == 5:
+            tend = len(messages)- ((page [0]) * 10)
+            tstart = max(0, end - 10)
+            if page[0] >= (len(messages) + 9) // 10:
+                ui.showFeedback("You are at the last page.")
+                continue
             page[0]+=1
-            a = -page[0]*10-1
-            b = len(messages)-10*(page[0]-1)
-            ui.displayMessage(messages[a:b])
+            end = len(messages)- ((page [0]- 1) * 10)
+            start = max(0, end - 10)
+            ui.displayMessage(messages[start:end])
         elif userInput == 6:
             storage.write_chat_msg(recipientEmail, messages)
             pageInfo["currentPage"] = "contact"
+            conversation["currentChat"] = None
+            conversation["messageList"] = None
+            conversation["page"] = None
             break
 
     stop_event.set()
@@ -393,10 +427,13 @@ def messageReader(ui: UI, receiveBuffer: List[dict], pageInfo: dict, account: Ac
                     b = len(conversation["messageList"])-10*(conversation["page"]-1)
                     ui.displayMessage(conversation["messageList"][a:b])
                 else:
-                    storage.append_msgs(packet["content"].sender, [packet["content"]])
-                    account.friendlist["unread"][account.friendlist["friends"].index(friend)]+=1
+                    storage.append_msgs(friend, [packet["content"]])
+                    account.unreadIncrement(friend)
                     if pageInfo["currentPage"]=="contact":
                         ui.displayFriend(account.friendlist["friends"], account.friendlist["unread"])
+
+                #Update friendlist
+                account.moveToFront(friend)
 
             elif packet["type"]=="request":
                 if packet["sender"]==account.user:
@@ -406,6 +443,8 @@ def messageReader(ui: UI, receiveBuffer: List[dict], pageInfo: dict, account: Ac
 
                 if pageInfo["currentPage"]=="request":
                     ui.displayRequest(account.request["sent"], account.request["received"])
+                elif pageInfo["currentPage"]=="contact":
+                    ui.displayFriend(account.friendlist["friends"], account.friendlist["unread"])
 
             elif packet["type"]=="response":
                 account.addFriend(packet["sender"], "sent")
@@ -415,6 +454,29 @@ def messageReader(ui: UI, receiveBuffer: List[dict], pageInfo: dict, account: Ac
                     ui.displayFriend(account.friendlist["friends"], account.friendlist["unread"])
 
             receiveBuffer.pop(0)
+
+def isValidEmail(email: str):
+
+    regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    
+    if re.match(regex, email):
+        return True
+    return False
+
+def isValidPassword(password: str) -> bool:
+    if not (12 <= len(password) <= 64):
+        return False
+    
+    if not password.isascii():
+        return False
+
+    hasLower = re.search(r'[a-z]', password)
+    hasUpper = re.search(r'[A-Z]', password)
+    hasDigit = re.search(r'\d', password)
+    hasSpecial = re.search(r'[^a-zA-Z0-9]', password)
+
+    # Return True only if all conditions are met
+    return all([hasLower, hasUpper, hasDigit, hasSpecial])
 
 
 if __name__ == "__main__":

@@ -65,3 +65,24 @@ class Account:
         if userEmail in self.friendlist["friends"]:
              self.removeFriend(self.friendlist["friends"].index(userEmail))
         self.blacklist.append(userEmail)
+
+    def clearUnread(self, userEmail):
+        self.lock()
+        self.friendlist["unread"][self.friendlist["friends"].index(userEmail)]=0
+        self.unlock()
+
+    def moveToFront(self, userEmail):
+        self.lock()
+        index = self.friendlist["friends"].index(userEmail)
+        friend = self.friendlist["friends"][index]
+        unread = self.friendlist["unread"][index]
+        del self.friendlist["friends"][index]
+        del self.friendlist["unread"][index]
+        self.friendlist["friends"].insert(0, friend)
+        self.friendlist["unread"].insert(0, unread)
+        self.unlock()
+
+    def unreadIncrement(self, userEmail):
+        self.lock()
+        self.friendlist["unread"][self.friendlist["friends"].index(userEmail)] +=1
+        self.unlock()
