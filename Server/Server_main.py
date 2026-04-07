@@ -156,9 +156,8 @@ def handle_login(data):
         
         if token_map[token] > datetime.now():
             
-            # user = sessions[token]
-            
             # Update current connection mapping
+            user = cached_user
             email = cached_user.email
             sid = request.sid
             online_users[sid] = email
@@ -169,7 +168,6 @@ def handle_login(data):
             sessions[token] = cached_user
             
             token_expiry_time = token_map[token]    
-            
             
         else:
             # remove expired token
