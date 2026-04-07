@@ -204,7 +204,6 @@ def handle_login(data):
         user.macAddress = macAddress
         user.publicKey = publicKey
         db.session.commit()
-        print(f"User {email} logged in and info updated in DB.")
     
     # Send offline messages if any
     offline_msgs_query = Message.query.filter_by(to_email=user.email, delivered=False).all()
@@ -365,7 +364,6 @@ def handle_send_friend_request(data):
         )
         db.session.add(new_request)
         db.session.commit()
-        print(f"Friend request from {user_email} to {friend_email} saved to DB")
         
     except Exception as e:
         db.session.rollback()

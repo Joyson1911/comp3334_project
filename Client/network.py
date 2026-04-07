@@ -37,8 +37,6 @@ class Client_API:
         self.on_friend_request = lambda req: self.receiveBuffer.append({'type': 'request', 'sender': req.get('from_email'), 'receiver': req.get('to_email')})       # Called when friend request received
         self.on_friend_accepted = lambda data: self.receiveBuffer.append({'type': 'response', 'accepted': True, 'sender': data.get('friend_email')})      # Called when friend request accepted
         self.on_friend_rejected = lambda data: self.receiveBuffer.append({'type': 'response', 'accepted': False, 'sender': data.get('friend_email')})      # Called when friend request rejected
-        # self.on_offline_messages = None     # Called when offline messages received
-        # self.on_friends_update = None       # Called when friend list updated
         # self.on_connected = None            # Called when WebSocket connected
         # self.on_disconnected = None         # Called when WebSocket disconnected
         
@@ -56,7 +54,6 @@ class Client_API:
         def connect():
             """Handle successful WebSocket connection"""
             self.is_connected = True
-            print("Connected to server")
             if self.on_connected:
                 self.on_connected()
         
@@ -64,7 +61,6 @@ class Client_API:
         def disconnect():
             """Handle WebSocket disconnection"""
             self.is_connected = False
-            print("Disconnected from server")
             if self.on_disconnected:
                 self.on_disconnected()
         
@@ -76,7 +72,6 @@ class Client_API:
         @self.sio.on('new_message')
         def on_new_message(data):
             """Handle incoming real-time message"""
-            print(f"Message from {data['from_email']}: {data['content']}")
             if self.on_message:
                 self.on_message(data)
         
@@ -96,27 +91,23 @@ class Client_API:
         @self.sio.on('friend_request_received')
         def on_friend_request(data):
             """Handle incoming friend request"""
-            print(f"Friend Request: {data['from_email']} wants to add you as a friend")
             if self.on_friend_request:
                 self.on_friend_request(data)
         
         @self.sio.on('friend_request_accepted')
         def on_friend_accepted(data):
             """Handle friend request acceptance notification"""
-            print(f"Success: {data['friend_email']} accepted your friend request")
             if self.on_friend_accepted:
                 self.on_friend_accepted(data)
                 
         @self.sio.on('friend_request_rejected')
         def on_friend_rejected(data):
             """Handle friend request rejection notification"""
-            print(f"Info: rejected your friend request")
             if self.on_friend_rejected:
                 self.on_friend_rejected(data)
 
         @self.sio.on('offline_friend_requests')
         def on_offline_requests(requests):
-            print(f"--- Received {len(requests)} offline friend requests ---")
             for req in requests:
                 if self.on_friend_request:
                     self.on_friend_request(req)
@@ -223,7 +214,7 @@ class Client_API:
         self.user_email = None
         self.is_authenticated = False
         self.receiveBuffer = None
-        print("Logged out")
+   
     
     
     
