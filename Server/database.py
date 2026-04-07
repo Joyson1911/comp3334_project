@@ -41,4 +41,4 @@ class Message(db.Model):
     delivered = db.Column(db.Boolean, default=False)
     delivery_notified = db.Column(db.Boolean, default=False)
     macAddress = db.Column(db.String(50))
-    live_time = db.Column(db.Integer)  
+    del_time = db.Column(db.Integer)  

@@ -219,7 +219,7 @@ def handle_login(data):
                 'content': m.content,
                 'timestamp': m.timestamp.isoformat() if m.timestamp else None,
                 'macAddress': m.macAddress,
-                'live_time': m.live_time  
+                'del_time': m.del_time
             })
             m.delivered = True
             
@@ -505,6 +505,41 @@ def handle_unfriend_request(data):
         db.session.rollback()
         return {'success': False, 'error': f'Database error: {str(e)}'}
 
+@socketio.on('cancel_friend_request')    
+def handle_cancel_friend_request(data):
+    """
+    Handle canceling a sent friend request
+    Expected data: {friend_email}
+    """
+    sid = request.sid
+    if sid not in online_users:
+        return {'success': False, 'error': 'Not authenticated'}
+    
+    user_email = online_users[sid]
+    friend_email = data.get('friend_email')
+    
+    if not friend_email:
+        return {'success': False, 'error': 'Friend email required'}
+    
+    try:
+        req = FriendRequest.query.filter_by(
+            from_email=user_email, 
+            to_email=friend_email, 
+            status='pending'
+        ).first()
+        
+        if not req:
+            return {'success': False, 'error': 'Pending request not found'}
+        
+        db.session.delete(req)
+        db.session.commit()
+        
+        return {'success': True, 'message': 'Friend request canceled'}
+    
+    except Exception as e:
+        db.session.rollback()
+        return {'success': False, 'error': f'Database error: {str(e)}'}
+
 # ============ Messaging Events ============
 
 @socketio.on('get_public_key')
@@ -548,14 +583,13 @@ def handle_send_message(data):
     from_email = online_users[sid]
     to_email = data.get('to_email')
     content = data.get('content')
-    timestamp = data.get('timestamp', datetime.now().isoformat())
     macAddress = data.get('macAddress')
-    del_time = data.get('del_time', None)
+    lifetime = data.get('lifetime', None)
     
-    if del_time is not None: 
-        live_time = timestamp + del_time
+    if lifetime is not None: 
+        del_time = datetime.now()+timedelta(seconds=del_time)
     else:
-        live_time = None 
+        del_time = None 
     
     # Validate input
     if not to_email or not content:
@@ -589,7 +623,7 @@ def handle_send_message(data):
             delivered=False,
             delivery_notified=False,
             macAddress=macAddress,
-            live_time=live_time 
+            del_time=del_time
         )
         
         # Check if recipient is online
@@ -603,7 +637,7 @@ def handle_send_message(data):
                 'content': content,
                 'timestamp': new_msg.timestamp.isoformat(),
                 'macAddress': macAddress,
-                'live_time': live_time,
+                'del_time': del_time,
             }, room=user_sid_map[to_email])
             
             new_msg.delivered = True

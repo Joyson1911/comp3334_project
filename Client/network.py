@@ -33,7 +33,7 @@ class Client_API:
                                                                                                        msg.get('from_email'),
                                                                                                        msg.get('to_email'),
                                                                                                     #    self.user_email,
-                                                                                                       True, None)})  # Called when new message received
+                                                                                                       True, msg.get('del_time'))})  # Called when new message received
         self.on_delivery_receipt = lambda receipt: self.receiveBuffer.append({'type': 'delivery_receipt', 'receiver': receipt.get('receiver'), 'message_id_list': receipt.get('message_id_list')})    # Called when delivery receipt received for a message sent while user was offline
         self.on_friend_request = lambda req: self.receiveBuffer.append({'type': 'request', 'sender': req.get('from_email'), 'receiver': req.get('to_email')})       # Called when friend request received
         self.on_friend_accepted = lambda data: self.receiveBuffer.append({'type': 'response', 'accepted': True, 'sender': data.get('friend_email')})      # Called when friend request accepted
@@ -289,6 +289,22 @@ class Client_API:
                 
         except Exception as e:
              return {"success": False, "error": f"Network error: {str(e)}"}
+         
+    def cancel_friend_request(self, friend_email: str):
+        """
+        Cancel a pending friend request 
+        """
+        try:
+            data = self.sio.call('cancel_friend_request', {
+                'friend_email': friend_email,
+            }, timeout=10)
+
+            if data and data.get('success'):
+                return {"success": True}
+            else:
+                return {"success": False, "error": f"Failed to cancel request: {data.get('error')}"}
+        except Exception as e:
+             return {"success": False, "error": f"Network error: {str(e)}"}
     
          
     # ============ Messaging Methods ============
@@ -309,7 +325,7 @@ class Client_API:
         except Exception as e:
              return {"success": False, "error": f"Network error: {str(e)}"}
         
-    def send_message(self, to_email: str, content: str, del_time: int = None):
+    def send_message(self, to_email: str, content: str, lifetime: int = None):
         """
         Send a message to a friend
         """
@@ -317,19 +333,20 @@ class Client_API:
             data = self.sio.call('send_message', {
                 'to_email': to_email,
                 'content': content,
-                'del_time': del_time,
+                'lifetime': lifetime,
                 'timestamp': time.time()
             }, timeout=10)
 
             if data and data.get('success'):
                 delivered = data.get('delivered', None)
+                del_time = data.get('del_time', None)
                 
                 # Online - deliver immediately
                 if delivered:
-                    return {"success": True, "delivered": True, "message_id": data.get('message_id')}
+                    return {"success": True, "delivered": True, "message_id": data.get('message_id'), "del_time": del_time}
                 # Offline - store for later
                 else:
-                    return {"success": True, "delivered": False, "message_id": data.get('message_id')}
+                    return {"success": True, "delivered": False, "message_id": data.get('message_id'), "del_time": del_time}
             else:
                 return {"success": False, "error": f"Failed to send message: {data.get('error')}"}
         except Exception as e:
