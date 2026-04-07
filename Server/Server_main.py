@@ -169,6 +169,8 @@ def handle_login(data):
             sessions[token] = cached_user
             
             token_expiry_time = token_map[token]    
+            
+            
         else:
             # remove expired token
             # if token in token_map:

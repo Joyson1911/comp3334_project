@@ -24,6 +24,7 @@ class Client_API:
         self.user_email = None
         self.is_authenticated = False
         self.is_connected = False
+        self.connection_event = threading.Event()
         self.receiveBuffer = [] 
         
         # Callback functions for application layer
@@ -54,6 +55,7 @@ class Client_API:
         def connect():
             """Handle successful WebSocket connection"""
             self.is_connected = True
+            self.connection_event.set()
             if self.on_connected:
                 self.on_connected()
         
@@ -61,6 +63,7 @@ class Client_API:
         def disconnect():
             """Handle WebSocket disconnection"""
             self.is_connected = False
+            self.connection_event.clear()
             if self.on_disconnected:
                 self.on_disconnected()
         
@@ -123,15 +126,18 @@ class Client_API:
         Starts background thread to handle WebSocket connection
         """
         def connect_thread():
-            self.sio.connect(self.server_url, transports=['websocket'])
-            self.sio.wait()  # Block and maintain connection
+            try:
+                self.sio.connect(self.server_url, transports=['websocket'])
+                self.sio.wait() # Block and maintain connection
+            except Exception as e:
+                print(f"Connection thread error: {e}")
 
         
         self.thread = threading.Thread(target=connect_thread, daemon=True)
         self.thread.start()
         
         # Wait a moment for connection to establish
-        time.sleep(0.5)
+        return self.connection_event.wait(timeout=5)
     
     def disconnect(self):
         """Disconnect from WebSocket server"""
@@ -180,6 +186,10 @@ class Client_API:
         """
         Login to existing account
         """
+        if not self.sio.connected:
+            if not self.connection_event.wait(timeout=2):
+                return {"success": False, "error": "Client is not connected to server."}
+        
         # Can use token instead of email/password/otp for auto-login 
         try:
             data = self.sio.call('login', {
