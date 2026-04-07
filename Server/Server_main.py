@@ -221,7 +221,7 @@ def handle_login(data):
                 'content': m.content,
                 'timestamp': m.timestamp.isoformat() if m.timestamp else None,
                 'macAddress': m.macAddress,
-                'del_time': strptime(m.del_time, "%Y-%m-%d %H:%M:%S") if m.del_time else None
+                'del_time': m.del_time
             })
             m.delivered = True
             
@@ -640,7 +640,7 @@ def handle_send_message(data):
                 'content': content,
                 'timestamp': new_msg.timestamp.isoformat(),
                 'macAddress': macAddress,
-                'del_time': strptime(del_time, "%Y-%m-%d %H:%M:%S") if del_time else None,
+                'del_time': del_time,
             }, room=user_sid_map[to_email])
             
             new_msg.delivered = True

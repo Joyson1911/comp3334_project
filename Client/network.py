@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import socketio
 import threading
 import time
@@ -33,7 +35,7 @@ class Client_API:
                                                                                                        msg.get('from_email'),
                                                                                                        msg.get('to_email'),
                                                                                                     #    self.user_email,
-                                                                                                       True, msg.get('del_time'))})  # Called when new message received
+                                                                                                       True, datetime.strptime(msg.get('del_time'), "%Y-%m-%d %H:%M:%S") if msg.get('del_time') else None)})  # Called when new message received
         self.on_delivery_receipt = lambda receipt: self.receiveBuffer.append({'type': 'delivery_receipt', 'receiver': receipt.get('receiver'), 'message_id_list': receipt.get('message_id_list')})    # Called when delivery receipt received for a message sent while user was offline
         self.on_friend_request = lambda req: self.receiveBuffer.append({'type': 'request', 'sender': req.get('from_email'), 'receiver': req.get('to_email')})       # Called when friend request received
         self.on_friend_accepted = lambda data: self.receiveBuffer.append({'type': 'response', 'accepted': True, 'sender': data.get('friend_email')})      # Called when friend request accepted
@@ -340,6 +342,8 @@ class Client_API:
             if data and data.get('success'):
                 delivered = data.get('delivered', None)
                 del_time = data.get('del_time', None)
+                if del_time:
+                    del_time = datetime.strptime(del_time, "%Y-%m-%d %H:%M:%S")
                 
                 # Online - deliver immediately
                 if delivered:
