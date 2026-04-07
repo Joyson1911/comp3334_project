@@ -661,6 +661,43 @@ def handle_send_message(data):
     except Exception as e:
         db.session.rollback()
         return {'success': False, 'error': f'Database error: {str(e)}'}
+    
+@socketio.on('latest_message_id')
+def handle_latest_message_id(data):
+    """
+    Get the latest message ID from a friend for synchronization
+    Expected data: {friend_email}
+    """
+    sid = request.sid
+    if sid not in online_users:
+        return {'success': False, 'error': 'Not authenticated'}
+    
+    user_email = online_users[sid]
+    friend_email = data.get('friend_email')
+    
+    if not friend_email:
+        return {'success': False, 'error': 'Friend email required'}
+    
+    # Check if they are friends
+    is_friend = Friendship.query.filter_by(
+        user_email=user_email, 
+        friend_email=friend_email
+    ).first()
+    
+    if not is_friend:
+        return {'success': False, 'error': 'You can only get message IDs from your friends'}
+    
+    # Get the latest message ID
+    latest_msg = Message.query.filter_by(
+        from_email=friend_email,
+        to_email=user_email, 
+        delivered=True
+    ).order_by(Message.id.desc()).first()
+    
+    if latest_msg:
+        return {'success': True, 'latest_message_id': latest_msg.id}
+    else:
+        return {'success': True, 'latest_message_id': None}
 
 # ============ Server Startup ============
 

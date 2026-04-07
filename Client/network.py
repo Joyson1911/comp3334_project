@@ -355,3 +355,19 @@ class Client_API:
                 return {"success": False, "error": f"Failed to send message: {data.get('error')}"}
         except Exception as e:
             return {"success": False, "error": f"Network error: {str(e)}"}
+        
+    def latest_message_id(self, friend_email: str):
+        """
+        Get the latest message ID from a friend for synchronization
+        """
+        try:
+            data = self.sio.call('latest_message_id', {
+                'friend_email': friend_email,
+            }, timeout=10)
+
+            if data and data.get('success'):
+                return {"success": True, "latest_message_id": data.get('latest_message_id')}
+            else:
+                return {"success": False, "error": f"Failed to get latest message ID: {data.get('error')}"}
+        except Exception as e:
+             return {"success": False, "error": f"Network error: {str(e)}"}
