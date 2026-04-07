@@ -39,5 +39,6 @@ class Message(db.Model):
     content = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     delivered = db.Column(db.Boolean, default=False)
-    macAddress = db.Column(db.String(50))
     delivery_notified = db.Column(db.Boolean, default=False)
+    macAddress = db.Column(db.String(50))
+    live_time = db.Column(db.Integer)  

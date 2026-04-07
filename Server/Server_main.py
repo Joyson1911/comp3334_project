@@ -218,7 +218,8 @@ def handle_login(data):
                 'to_email': m.to_email,
                 'content': m.content,
                 'timestamp': m.timestamp.isoformat() if m.timestamp else None,
-                'macAddress': m.macAddress
+                'macAddress': m.macAddress,
+                'live_time': m.live_time  
             })
             m.delivered = True
             
@@ -548,6 +549,13 @@ def handle_send_message(data):
     to_email = data.get('to_email')
     content = data.get('content')
     timestamp = data.get('timestamp', datetime.now().isoformat())
+    macAddress = data.get('macAddress')
+    del_time = data.get('del_time', None)
+    
+    if del_time is not None: 
+        live_time = timestamp + del_time
+    else:
+        live_time = None 
     
     # Validate input
     if not to_email or not content:
@@ -577,10 +585,11 @@ def handle_send_message(data):
             from_email=from_email,
             to_email=to_email,
             content=content,
-            # macAddress=macAddress,
+            timestamp=datetime.utcnow(),
             delivered=False,
             delivery_notified=False,
-            timestamp=datetime.utcnow()
+            macAddress=macAddress,
+            live_time=live_time 
         )
         
         # Check if recipient is online
@@ -588,11 +597,13 @@ def handle_send_message(data):
         if to_email in user_sid_map:
             # Online - deliver immediately
             socketio.emit('new_message', {
+                'message_id': new_msg.id,
                 'from_email': from_email,
                 'to_email': to_email,
                 'content': content,
-                # 'macAddress': macAddress,
-                'timestamp': new_msg.timestamp.isoformat()
+                'timestamp': new_msg.timestamp.isoformat(),
+                'macAddress': macAddress,
+                'live_time': live_time,
             }, room=user_sid_map[to_email])
             
             new_msg.delivered = True

@@ -37,8 +37,8 @@ class Client_API:
         self.on_friend_request = lambda req: self.receiveBuffer.append({'type': 'request', 'sender': req.get('from_email'), 'receiver': req.get('to_email')})       # Called when friend request received
         self.on_friend_accepted = lambda data: self.receiveBuffer.append({'type': 'response', 'accepted': True, 'sender': data.get('friend_email')})      # Called when friend request accepted
         self.on_friend_rejected = lambda data: self.receiveBuffer.append({'type': 'response', 'accepted': False, 'sender': data.get('friend_email')})      # Called when friend request rejected
-        # self.on_connected = None            # Called when WebSocket connected
-        # self.on_disconnected = None         # Called when WebSocket disconnected
+        self.on_connected = None            # Called when WebSocket connected
+        self.on_disconnected = None         # Called when WebSocket disconnected
         
         # Setup event handlers
         self._setup_handlers()
@@ -307,6 +307,7 @@ class Client_API:
             data = self.sio.call('send_message', {
                 'to_email': to_email,
                 'content': content,
+                'del_time': del_time,
                 'timestamp': time.time()
             }, timeout=10)
 
