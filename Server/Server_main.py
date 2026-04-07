@@ -1,3 +1,5 @@
+from time import strftime, strptime
+
 import eventlet
 eventlet.monkey_patch()
 
@@ -219,7 +221,7 @@ def handle_login(data):
                 'content': m.content,
                 'timestamp': m.timestamp.isoformat() if m.timestamp else None,
                 'macAddress': m.macAddress,
-                'del_time': m.del_time
+                'del_time': strptime(m.del_time, "%Y-%m-%d %H:%M:%S")
             })
             m.delivered = True
             
@@ -587,7 +589,8 @@ def handle_send_message(data):
     lifetime = data.get('lifetime', None)
     
     if lifetime is not None: 
-        del_time = datetime.now()+timedelta(seconds=del_time)
+        del_time = datetime.now()+timedelta(seconds=lifetime)
+        del_time = del_time.strftime("%Y-%m-%d %H:%M:%S")
     else:
         del_time = None 
     
@@ -637,7 +640,7 @@ def handle_send_message(data):
                 'content': content,
                 'timestamp': new_msg.timestamp.isoformat(),
                 'macAddress': macAddress,
-                'del_time': del_time,
+                'del_time': strptime(del_time, "%Y-%m-%d %H:%M:%S"),
             }, room=user_sid_map[to_email])
             
             new_msg.delivered = True
