@@ -10,6 +10,7 @@ from datetime import datetime
 from datetime import timedelta
 
 from database import db, User, Friendship, BlockedUser, FriendRequest, Message
+from retention_policy import start_retention_worker
 #from Email import emailVerification
 
 app = Flask(__name__)
@@ -255,7 +256,7 @@ def handle_login(data):
     undelivered_receipts = Message.query.filter_by(from_email=user.email, delivered=True, delivery_notified=False).all()
     if undelivered_receipts:
         receipt_ids = [m.id for m in undelivered_receipts]
-        emit('message_delivered', {'message_ids': receipt_ids})
+        emit('message_delivered', {'message_id_list': receipt_ids})
         for m in undelivered_receipts:
             m.delivery_notified = True
         db.session.commit()
@@ -630,6 +631,9 @@ def handle_send_message(data):
             del_time=del_time
         )
         
+        db.session.add(new_msg)
+        db.session.flush()  # Flush to get the message ID for real-time delivery before commit
+        
         # Check if recipient is online
         delivered = False
         if to_email in user_sid_map:
@@ -708,6 +712,8 @@ if __name__ == '__main__':
     
     with app.app_context():
         db.create_all()
+    
+    start_retention_worker(app)
     
     from os.path import join, abspath, dirname
     cur = dirname(abspath(__file__))

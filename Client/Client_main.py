@@ -282,13 +282,12 @@ def chatroomPage(ui: UI, account: Account, storage: SecureStorage, conversation:
             msg = Message(None, content, account.user, recipientEmail, None, None)
             cipher = RSA.encrypt_msg(msg.message.encode(), latestKey)
             send_result = api.send_message(recipientEmail, cipher, lifetime)
-            send_result = api.send_message(recipientEmail, cipher, lifetime)
             if not send_result.get("success"):
                 ui.showFeedback(send_result.get("error"))
                 continue
             msg.delivered = send_result.get("delivered")
             msg.id = send_result.get("message_id")
-            msg.delete_time = send_result.get("")
+            msg.delete_time = send_result.get("del_time")
             messages.append(msg)
             end = len(messages)- ((page [0]- 1) * 10)
             start = max(0, end - 10)
