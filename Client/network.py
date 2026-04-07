@@ -33,14 +33,14 @@ class Client_API:
                                                                                                        msg.get('to_email'),
                                                                                                     #    self.user_email,
                                                                                                        True, None)})  # Called when new message received
-        
+        self.on_delivery_receipt = lambda receipt: self.receiveBuffer.append({'type': 'delivery_receipt', 'receiver': receipt.get('receiver'), 'message_id_list': receipt.get('message_id_list')})    # Called when delivery receipt received for a message sent while user was offline
         self.on_friend_request = lambda req: self.receiveBuffer.append({'type': 'request', 'sender': req.get('from_email'), 'receiver': req.get('to_email')})       # Called when friend request received
         self.on_friend_accepted = lambda data: self.receiveBuffer.append({'type': 'response', 'accepted': True, 'sender': data.get('friend_email')})      # Called when friend request accepted
         self.on_friend_rejected = lambda data: self.receiveBuffer.append({'type': 'response', 'accepted': False, 'sender': data.get('friend_email')})      # Called when friend request rejected
         # self.on_offline_messages = None     # Called when offline messages received
         # self.on_friends_update = None       # Called when friend list updated
-        self.on_connected = None            # Called when WebSocket connected
-        self.on_disconnected = None         # Called when WebSocket disconnected
+        # self.on_connected = None            # Called when WebSocket connected
+        # self.on_disconnected = None         # Called when WebSocket disconnected
         
         # Setup event handlers
         self._setup_handlers()
@@ -86,6 +86,12 @@ class Client_API:
             for msg in messages:
                 if self.on_message:
                     self.on_message(msg)
+                    
+        @self.sio.on('message_delivered')
+        def on_message_delivered(data):
+            """Handle receipts for messages delivered"""
+            if self.on_delivery_receipt:
+                self.on_delivery_receipt(data)
         
         @self.sio.on('friend_request_received')
         def on_friend_request(data):
@@ -302,7 +308,7 @@ class Client_API:
         except Exception as e:
              return {"success": False, "error": f"Network error: {str(e)}"}
         
-    def send_message(self, to_email: str, content: str):
+    def send_message(self, to_email: str, content: str, del_time: int = None):
         """
         Send a message to a friend
         """

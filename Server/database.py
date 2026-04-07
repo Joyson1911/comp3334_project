@@ -21,7 +21,6 @@ class Friendship(db.Model):
     
 class BlockedUser(db.Model):
     __tablename__ = 'blocked_users'
-    # id = db.Column(db.Integer, primary_key=True)
     user_email = db.Column(db.String(120), primary_key=True)
     blocked_email = db.Column(db.String(120), primary_key=True)
     
@@ -41,3 +40,4 @@ class Message(db.Model):
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     delivered = db.Column(db.Boolean, default=False)
     macAddress = db.Column(db.String(50))
+    delivery_notified = db.Column(db.Boolean, default=False)

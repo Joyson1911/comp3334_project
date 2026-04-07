@@ -170,6 +170,9 @@ def handle_login(data):
             
             token_expiry_time = token_map[token]    
         else:
+            # remove expired token
+            # if token in token_map:
+            #     del token_map[token]
             return {'success': False, 'error': 'Invalid or expired token'}
         
     else:        
@@ -207,6 +210,7 @@ def handle_login(data):
     offline_msgs_query = Message.query.filter_by(to_email=user.email, delivered=False).all()
     
     if offline_msgs_query:
+        delivery_notifications = {} # Group notifications by sender
         formatted_msgs = []
         for m in offline_msgs_query:
             formatted_msgs.append({
@@ -219,14 +223,40 @@ def handle_login(data):
             })
             m.delivered = True
             
+            # Track which messages need delivery notifications sent to the sender
+            if m.from_email not in delivery_notifications:
+                delivery_notifications[m.from_email] = []
+            delivery_notifications[m.from_email].append(m.id)
+            
+        # Notify senders immediately if they are currently online
+        for sender_email, msg_ids in delivery_notifications.items():
+            if sender_email in user_sid_map:
+                socketio.emit('message_delivered', {
+                    'receiver': user.email,
+                    'message_id_list': msg_ids,
+                    }, room=user_sid_map[sender_email])
+                # Mark as notified since we just sent the receipt to the online sender
+                for mid in msg_ids:
+                    msg_obj = Message.query.get(mid)
+                    msg_obj.delivery_notified = True
+            
         try:
             db.session.commit()
-            print(f"Updated {len(offline_msgs_query)} messages to delivered status.")
+            print(f"Successfully synchronized offline status for {user.email}")
         except Exception as e:
             db.session.rollback()
-            print(f"Error updating message status: {e}")
+            print(f"Database sync error: {e}")
             
         emit('offline_messages', formatted_msgs)
+        
+    # Send offline delivery receipts for messages sent by this user that were delivered while they were offline
+    undelivered_receipts = Message.query.filter_by(from_email=user.email, delivered=True, delivery_notified=False).all()
+    if undelivered_receipts:
+        receipt_ids = [m.id for m in undelivered_receipts]
+        emit('message_delivered', {'message_ids': receipt_ids})
+        for m in undelivered_receipts:
+            m.delivery_notified = True
+        db.session.commit()
     
     
     # Send offline friend requests if any
@@ -365,8 +395,6 @@ def handle_respond_to_friend_request(data):
     action = data.get('action')
     
     # Find the request
-    # req = next((r for r in friend_requests if r['from_email'] == friend_email and r['to_email'] == user_email), None)
-    
     req = FriendRequest.query.filter_by(
         from_email=friend_email, 
         to_email=user_email,
@@ -553,6 +581,7 @@ def handle_send_message(data):
             content=content,
             # macAddress=macAddress,
             delivered=False,
+            delivery_notified=False,
             timestamp=datetime.utcnow()
         )
         
@@ -569,6 +598,7 @@ def handle_send_message(data):
             }, room=user_sid_map[to_email])
             
             new_msg.delivered = True
+            new_msg.delivery_notified = True
             delivered = True
             
         db.session.add(new_msg)
