@@ -99,6 +99,7 @@ def handle_otp_request(data):
     }
     
     emailVerification(generated_otp, email)
+    print(f"Generated OTP for {email}: {generated_otp} (expires at {expiry_time.isoformat()})")
     
     return {'success': True, 'message': 'OTP generated'}
 
@@ -261,10 +262,6 @@ def handle_login(data):
     
         print(f"Sending {len(formatted_reqs)} offline friend requests to {user.email}")
         emit('offline_friend_requests', formatted_reqs)
-    
-    #need to remove!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    print(f"token: {token}") #need to remove!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    #need to remove!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     
     token_map[token] = token_expiry_time
     
@@ -707,4 +704,4 @@ if __name__ == '__main__':
     
     from os.path import join, abspath, dirname
     cur = dirname(abspath(__file__))
-    socketio.run(app, host='0.0.0.0', port=3000, debug=True, keyfile=join(cur, 'key.pem'), certfile=join(cur, 'cert.pem'))
+    socketio.run(app, host='0.0.0.0', port=8443, debug=True, keyfile=join(cur, 'key.pem'), certfile=join(cur, 'cert.pem'))
