@@ -492,7 +492,6 @@ def isValidEmail(email: str):
 
 def isValidPassword(password: str) -> bool:
 
-    return True
     if not (12 <= len(password) <= 64):
         return False
     
