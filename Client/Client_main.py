@@ -323,7 +323,7 @@ def chatroomPage(ui: UI, account: Account, storage: SecureStorage, conversation:
         elif userInput == 5:
             tend = len(messages)- ((page [0]) * pageSize)
             tstart = max(0, end - pageSize)
-            if page[0] >= (len(messages) + 9) // pageSize:
+            if page[0] >= (len(messages) + pageSize-1) // pageSize:
                 ui.showFeedback("You are at the last page.")
                 continue
             page[0]+=1

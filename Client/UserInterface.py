@@ -37,6 +37,23 @@ class UI:
         self.input_win.hline(0, 0, curses.ACS_HLINE, 10)
         self.input_win.refresh()
 
+    def recalculate_layout(self):
+        self.h, self.w = self.stdscr.getmaxyx()
+
+        self.title_win.erase()
+        self.msg_win.erase()
+        self.input_win.erase()
+
+        self.title_win = curses.newwin(1, self.w, 0, 0)
+        self.msg_win = curses.newwin(self.h - 5, self.w, 1, 0)
+        self.input_win = curses.newwin(4, self.w, self.h - 4, 0)
+
+        self.msg_win.scrollok(True)
+        self.input_win.hline(0, 0, curses.ACS_HLINE, self.w)
+
+        self.stdscr.clear()
+        self.stdscr.refresh()
+
     def lock(self):
         while self.locked:
             pass
@@ -84,7 +101,7 @@ class UI:
         self.msg_win.addstr(row, 0, "Requests you sent that are still pending:")
         row+=1
         for i in range(len(sentRequests)):
-            self.msg_win.addstr(row, 0, f"{i+1}: {rcvRequests[i]}")
+            self.msg_win.addstr(row, 0, f"{i+1}: {sentRequests[i]}")
             row+=1
         self.msg_win.refresh()
         self.input_win.move(self.typing_point[0], self.typing_point[1])
@@ -120,6 +137,29 @@ class UI:
         self.input_win.clrtoeol()
         self.input_win.refresh()
 
+    def getString(self, inputMessage):
+        self.input_win.addstr(3, 0, inputMessage)
+        self.input_win.refresh()
+        
+        input = ""
+        while True:
+            ch = self.input_win.getch()
+            
+            if ch == curses.KEY_RESIZE:
+                return "RESIZE_EVENT" 
+            elif ch in (10, 13): # Enter key
+                break
+            elif ch in (8, 127, curses.KEY_BACKSPACE):
+                if len(input) > 0:
+                    input = input[:-1]
+                    y, x = self.input_win.getyx()
+                    self.input_win.move(y, x - 1) # Move back
+                    self.input_win.delch()
+            else:
+                input += chr(ch)
+            
+        return input
+    
     def getInteger(self, inputMessage: str, limit: int):
         #Display the input prompt in the line 3 of input window
         self.input_win.addstr(3, 0, inputMessage)
@@ -131,7 +171,10 @@ class UI:
             self.input_win.clrtoeol()
             self.input_win.refresh()
             try:
-                userInput = int(self.input_win.getstr().decode())
+                userInputStr = self.getString(inputMessage)
+                if userInputStr == "RESIZE_EVENT":
+                    return "RESIZE_EVENT"
+                userInput = int(userInputStr)
             except ValueError:
                 self.showFeedback("Invalid input. Please try again.")   
                 continue
@@ -143,13 +186,6 @@ class UI:
             self.clearFeedback()
         return userInput
 
-    def getString(self, inputMessage):
-        self.input_win.addstr(3, 0, inputMessage)
-        self.typing_point = list(self.input_win.getyx())
-        self.input_win.clrtoeol()
-        self.input_win.refresh()
-        return  self.input_win.getstr().decode()
-
     def getPassword(self, inputMessage):
         curses.noecho()
         userInput = self.getString(inputMessage)
@@ -160,6 +196,8 @@ class UI:
         units = {"s": 1, "m": 60, "h": 3600}
         while True:
             userInput = self.getString(inputMessage)
+            if userInput == "RESIZE_EVENT":
+                return "RESIZE_EVENT"
             try:    
                 value = int(userInput[:-1])
                 unit = userInput[-1].lower()
