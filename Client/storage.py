@@ -106,7 +106,7 @@ class SecureStorage:
         else:
             self._load_client()
             
-        self.salt = SHA256().compute('salt').encode()
+        self.salt = SHA256().compute(salt).encode()
             
     def get_unread_count(self, other_email: str) -> int:
         msg_path = list(self.user_msg_dir.glob(f'{other_email}_*'))

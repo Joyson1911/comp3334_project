@@ -325,7 +325,7 @@ class Client_API:
         except Exception as e:
              return {"success": False, "error": f"Network error: {str(e)}"}
         
-    def send_message(self, to_email: str, content: str, del_time: int = None):
+    def send_message(self, to_email: str, content: str, del_time: str = None):
         """
         Send a message to a friend
         """

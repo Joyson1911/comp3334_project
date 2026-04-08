@@ -296,7 +296,7 @@ def chatroomPage(ui: UI, account: Account, storage: SecureStorage, conversation:
                 continue
             msg = Message(None, content, account.user, recipientEmail, None, None)
             cipher = RSA.encrypt_msg(msg.message.encode(), latestKey)
-            send_result = api.send_message(recipientEmail, cipher, lifetime)
+            send_result = api.send_message(recipientEmail, cipher, None if lifetime==None else (datetime.now()+timedelta(seconds=lifetime)).strftime("%Y-%m-%d %H:%M:%S"))
             if not send_result.get("success"):
                 ui.showFeedback(send_result.get("error"))
                 continue
@@ -321,8 +321,6 @@ def chatroomPage(ui: UI, account: Account, storage: SecureStorage, conversation:
             start = max(0, end - pageSize)
             ui.displayMessage(messages[start:end])
         elif userInput == 5:
-            tend = len(messages)- ((page [0]) * pageSize)
-            tstart = max(0, end - pageSize)
             if page[0] >= (len(messages) + pageSize-1) // pageSize:
                 ui.showFeedback("You are at the last page.")
                 continue
@@ -486,7 +484,6 @@ def messageReader(ui: UI, receiveBuffer: List[dict], pageInfo: dict, account: Ac
 
 def isValidEmail(email: str):
 
-    return True
     regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     
     if re.match(regex, email):
