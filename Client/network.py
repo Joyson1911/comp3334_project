@@ -12,15 +12,16 @@ class Client_API:
     All communication happens through WebSocket connection.
     """
     
-    def __init__(self, server_url: str = "https://ec2-54-66-34-48.ap-southeast-2.compute.amazonaws.com:8443"):
+    # def __init__(self, server_url: str = "https://ec2-54-66-34-48.ap-southeast-2.compute.amazonaws.com:8443"):
+    def __init__(self, server_url: str = "https://localhost:8443"):
         """
         Initialize chat client
         
         Args:
-            server_url: WebSocket server URL (e.g., https://localhost:3000)
+            server_url: WebSocket server URL (e.g., https://localhost:8443)
         """
         self.server_url = server_url
-        self.sio = socketio.Client(ssl_verify=False)
+        self.sio = socketio.Client(ssl_verify=False)  # Disable SSL verification for self-signed certs 
         self.token = None
         self.user_email = None
         self.is_authenticated = False
@@ -324,7 +325,7 @@ class Client_API:
         except Exception as e:
              return {"success": False, "error": f"Network error: {str(e)}"}
         
-    def send_message(self, to_email: str, content: str, lifetime: int = None):
+    def send_message(self, to_email: str, content: str, del_time: int = None):
         """
         Send a message to a friend
         """
@@ -332,7 +333,7 @@ class Client_API:
             data = self.sio.call('send_message', {
                 'to_email': to_email,
                 'content': content,
-                'lifetime': lifetime,
+                'del_time': del_time,
                 'timestamp': time.time()
             }, timeout=10)
 

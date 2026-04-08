@@ -571,13 +571,7 @@ def handle_send_message(data):
     from_email = online_users[sid]
     to_email = data.get('to_email')
     content = data.get('content')
-    lifetime = data.get('lifetime', None)
-    
-    if lifetime is not None: 
-        del_time = datetime.now()+timedelta(seconds=lifetime)
-        del_time = del_time.strftime("%Y-%m-%d %H:%M:%S")
-    else:
-        del_time = None 
+    del_time = data.get('del_time', None)
     
     # Validate input
     if not to_email or not content:
