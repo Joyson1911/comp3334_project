@@ -8,7 +8,7 @@ def run_retention_policy(app):
         while True:
             try:
                 # 1. Calculate the 7-hour cutoff for standard delivered messages (using utcnow)
-                seven_hours_ago = datetime.utcnow() - timedelta(seconds=6)
+                seven_hours_ago = datetime.utcnow() - timedelta(hours=7)
                 
                 # 2. Get the current local time string for del_time comparisons (using now)
                 current_time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

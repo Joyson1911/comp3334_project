@@ -771,4 +771,4 @@ if __name__ == '__main__':
     
     from os.path import join, abspath, dirname
     cur = dirname(abspath(__file__))
-    socketio.run(app, host='0.0.0.0', port=3000, debug=True, keyfile=join(cur, 'key.pem'), certfile=join(cur, 'cert.pem'))
+    socketio.run(app, host='0.0.0.0', port=8443, debug=True, keyfile=join(cur, 'key.pem'), certfile=join(cur, 'cert.pem'))

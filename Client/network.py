@@ -13,7 +13,7 @@ class Client_API:
     All communication happens through WebSocket connection.
     """
     
-    def __init__(self, server_url: str = "https://localhost:3000"):
+    def __init__(self, server_url: str = "https://ec2-54-66-34-48.ap-southeast-2.compute.amazonaws.com:8443"):
         """
         Initialize chat client
         
