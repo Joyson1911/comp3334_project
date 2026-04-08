@@ -357,7 +357,7 @@ def handle_logout(data):
         
         # Clear all sessions for this user
         for token, user in list(sessions.items()):
-            if user['email'] == email:
+            if user.email == email:
                 del sessions[token]
                 break
         

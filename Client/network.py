@@ -221,12 +221,18 @@ class Client_API:
     
     def logout(self):
         """Logout from current session"""
-        self.sio.emit('logout', {})
+        
+        try:
+            if self.sio.connected:
+                self.sio.emit('logout', {})
+        except Exception as e:
+            print(f"Logout error: {e}")
+            
         self.token = None
         self.user_email = None
         self.is_authenticated = False
         self.receiveBuffer = None
-   
+    
     
     
     
