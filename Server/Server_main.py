@@ -98,8 +98,7 @@ def handle_otp_request(data):
         'expiry': expiry_time
     }
     
-    # emailVerification(generated_otp, email)
-    print(f"Generated OTP for {email}: {generated_otp} (expires at {expiry_time.isoformat()})")
+    emailVerification(generated_otp, email)
     
     return {'success': True, 'message': 'OTP generated'}
 
