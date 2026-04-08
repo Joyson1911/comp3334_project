@@ -1,5 +1,5 @@
 import smtplib
-from common.config import Config
+from config import Config
 
 
 

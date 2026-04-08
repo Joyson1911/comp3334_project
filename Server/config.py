@@ -6,7 +6,7 @@ class Config():
     _config = configparser.ConfigParser()
     
     @staticmethod
-    def add_conf(path: str = 'config.ini'):
+    def add_conf(path: str = 'Server/config.ini'):
         if not exists(path):
                 raise FileNotFoundError(f'{path} does not exist in {getcwd()}')
         if not isfile(path):

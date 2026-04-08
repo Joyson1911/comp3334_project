@@ -11,7 +11,8 @@ from datetime import timedelta
 
 from database import db, User, Friendship, BlockedUser, FriendRequest, Message
 from retention_policy import start_retention_worker
-#from Email import emailVerification
+from otp_cleanup import start_otp_cleanup
+# from Email import emailVerification
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -26,7 +27,7 @@ online_users = {}    # sid -> user_email
 user_sid_map = {}    # user_email -> sid
 sessions = {}        # token -> user
 token_map = {}      # token -> token_expiry_time
-pending_otps = {}   # email -> otp (for registration/login verification)
+pending_otps = {}   # email -> otp and otp_expiry_time (for registration/login verification)
 
 otp_lifetime = timedelta(minutes=5)  # OTP lifetime 
 
@@ -90,10 +91,17 @@ def handle_otp_request(data):
     
     # only for testing!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     #should use email.py to send email with OTP!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    
     # Generate and store OTP
-    generated_otp = secrets.randbelow(900000) + 100000  # 生成 6 位数 OTP
-    pending_otps[email] = generated_otp
-    print(f"Generated OTP for {email}: {generated_otp}")
+    generated_otp = secrets.randbelow(900000) + 100000  # 6-digit OTP
+    expiry_time = datetime.now() + otp_lifetime
+    pending_otps[email] = {
+        'code': str(generated_otp),
+        'expiry': expiry_time
+    }
+    print(f"Generated OTP for {email}: {generated_otp} (Expires: {expiry_time})")
+    
+    # emailVerification(generated_otp, email)
     
     return {'success': True, 'message': 'OTP generated', 'otp': generated_otp}
 
@@ -111,8 +119,13 @@ def handle_register(data):
     if not email or not password or not otp:
         return {'success': False, 'error': 'Email, password, and OTP are required'}
     
-    if otp != str(pending_otps.get(email)).strip():
+    if otp != str(pending_otps.get(email or {}).get("code")).strip():
         return {'success': False, 'error': 'Invalid OTP'}
+    
+    # Check if OTP has expired
+    if datetime.now() > pending_otps.get(email or {}).get("expiry"):
+        pending_otps.pop(email, None) # Remove expired OTP
+        return {'success': False, 'error': 'OTP has expired'}
     
     # OTP is valid, remove it from pending list
     pending_otps.pop(email, None)
@@ -216,8 +229,13 @@ def handle_login(data):
             return {'success': False, 'error': 'Invalid credentials'}
         
         # Validate OTP
-        if not otp or otp != str(pending_otps.get(email)).strip():
+        if not otp or otp != str(pending_otps.get(email or {}).get("code")).strip():
             return {'success': False, 'error': 'Invalid OTP'}
+        
+        # Check if OTP has expired
+        if datetime.now() > pending_otps.get(email or {}).get("expiry"):
+            pending_otps.pop(email, None) # Remove expired OTP
+            return {'success': False, 'error': 'OTP has expired'}
         
         if email and user_sid_map.get(email):
             return {'success': False, 'error': 'User already logged in from another device'}
@@ -745,7 +763,11 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
     
+    # Start background worker for message retention policy
     start_retention_worker(app)
+    
+    # Start background worker for OTP cleanup
+    start_otp_cleanup(pending_otps)
     
     from os.path import join, abspath, dirname
     cur = dirname(abspath(__file__))
