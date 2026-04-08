@@ -6,6 +6,7 @@ from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPubl
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from typing import Self
 from enum import Enum
+from os import urandom
 
 class Padding(Enum):
     OAEP = padding.OAEP(
@@ -208,6 +209,8 @@ class RSA():
 import hashlib
 import base64
 
+SALT_LEN = 16
+
 class SHA256:
 
     """Encapsulation class for SHA-256 hash operations.
@@ -215,18 +218,9 @@ class SHA256:
     Provides a consistent interface for computing SHA-256 hashes of text or binary data.
     Useful for data integrity verification, token generation, and cryptographic operations.
     """
-
-    def __init__(self, encoding: str = "utf-8"):
-        """Initialize the SHA-256 hasher.
-
-        Parameters
-        ----------
-        encoding: str
-            Character encoding for text input, default: utf-8.
-        """
-        self.encoding = encoding
-
-    def compute(self, data: str | bytes) -> str:
+    
+    @staticmethod
+    def compute(data: str | bytes, salt: str | bytes = b'') -> str:
         """Compute SHA-256 hash of the given data.
 
         Parameters
@@ -246,126 +240,91 @@ class SHA256:
             '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824'
         """
         if isinstance(data, str):
-            data = data.encode(self.encoding)
-        return hashlib.sha256(data).hexdigest()
+            data = data.encode()
+            
+        if not isinstance(salt, bytes):
+            if not isinstance(salt, str):
+                salt = str(salt)
+            salt = salt.encode()
+            
+        if salt == None:
+            salt = urandom(SALT_LEN)
+        elif len(salt) < SALT_LEN:
+            salt = salt + b'\x69' * (SALT_LEN - len(salt))
+        elif len(salt) > SALT_LEN:
+            salt = salt[:SALT_LEN]
+            
+        
+        res = hashlib.sha256()
+        res.update(salt + data)
+        return res.hexdigest()
 
-    def compute_raw(self, data: str | bytes) -> bytes:
-        """Compute SHA-256 hash and return raw bytes.
+    @staticmethod
+    def encrypt_with_pw(text: str, password: str, salt: bytes | None = None) -> bytes:
+        """Encrypts a text with provided key and salt shifting, salt show be exactly `crypto.SALT_LEN` long.
 
         Parameters
         ----------
-        data: str | bytes
-            String or bytes to hash.
+        text : str
+            Text to be encrypted.
+        password : str
+            Password encrypting the text.
+        salt : bytes | None, optional
+            The encryption shifting bytes, by default None for auto generation.
 
         Returns
         -------
         bytes
-            Raw byte representation of the hash.
+            Encrypted bytes.
         """
-        if isinstance(data, str):
-            data = data.encode(self.encoding)
-        return hashlib.sha256(data).digest()
 
-    def compute_b64(self, data: str | bytes) -> str:
-        """Compute SHA-256 hash and return base64-encoded string.
+        if salt == None:
+            salt = urandom(SALT_LEN)
+        elif len(salt) < SALT_LEN:
+            salt = salt + urandom(SALT_LEN - len(salt))
+        elif len(salt) > SALT_LEN:
+            salt = salt[:SALT_LEN]
+        
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=salt,
+            iterations=480000,
+        )
+        key = base64.urlsafe_b64encode(kdf.derive(password.encode()))
+        return salt + Fernet(key).encrypt(text.encode())
+
+    @staticmethod
+    def decrypt_with_pw(ciphertext: bytes, password: str) -> str:
+        """Decrypts the cipher text with given password.
 
         Parameters
         ----------
-        data: str | bytes
-            String or bytes to hash.
+        ciphertext : bytes
+            Ciphertext to be decrypt.
+        password : str
+            Key to decrypt, raises InvalidKey exception if incorrect.
+            
+        Exceptions:
+        InvalidKey
+            Raises if provided key is incorrect.
 
         Returns
         -------
         str
-            Base64-encoded hex string of the hash.
+            decrypted message string.
         """
-        hash_bytes = self.compute_raw(data)
-        return base64.b64encode(hash_bytes).decode("ascii")
-
-    def verify(self, data: str | bytes, expected_hash: str) -> bool:
-        """Verify that the data produces the expected hash.
-
-        Parameters
-        ----------
-        data: str | bytes
-            String or bytes to verify.
-        expected_hash: str
-            Expected hash in hexadecimal format.
-
-        Returns
-        -------
-        bool
-            True if hashes match, False otherwise.
-        """
-        actual_hash = self.compute(data)
-        return actual_hash == expected_hash
-    
-SALT_LEN = 16
-
-def encrypt_with_pw(text: str, password: str, salt: bytes | None = None) -> bytes:
-    """Encrypts a text with provided key and salt shifting, salt show be exactly `crypto.SALT_LEN` long.
-
-    Parameters
-    ----------
-    text : str
-        Text to be encrypted.
-    password : str
-        Password encrypting the text.
-    salt : bytes | None, optional
-        The encryption shifting bytes, by default None for auto generation.
-
-    Returns
-    -------
-    bytes
-        Encrypted bytes.
-    """
-    from os import urandom
-    if salt == None:
-        salt = urandom(SALT_LEN)
-    elif len(salt) < SALT_LEN:
-        salt = salt + urandom(SALT_LEN - len(salt))
-    elif len(salt) > SALT_LEN:
-        salt = salt[:SALT_LEN]
-    
-    kdf = PBKDF2HMAC(
-        algorithm=hashes.SHA256(),
-        length=32,
-        salt=salt,
-        iterations=480000,
-    )
-    key = base64.urlsafe_b64encode(kdf.derive(password.encode()))
-    return salt + Fernet(key).encrypt(text.encode())
-
-def decrypt_with_pw(ciphertext: bytes, password: str) -> str:
-    """Decrypts the cipher text with given password.
-
-    Parameters
-    ----------
-    ciphertext : bytes
-        Ciphertext to be decrypt.
-    password : str
-        Key to decrypt, raises InvalidKey exception if incorrect.
+        salt = ciphertext[:SALT_LEN]
+        ciphertext = ciphertext[SALT_LEN:]
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=salt,
+            iterations=480000,
+        )
+        key = base64.urlsafe_b64encode(kdf.derive(password.encode()))
         
-    Exceptions:
-    InvalidKey
-        Raises if provided key is incorrect.
-
-    Returns
-    -------
-    str
-        decrypted message string.
-    """
-    salt = ciphertext[:SALT_LEN]
-    ciphertext = ciphertext[SALT_LEN:]
-    kdf = PBKDF2HMAC(
-        algorithm=hashes.SHA256(),
-        length=32,
-        salt=salt,
-        iterations=480000,
-    )
-    key = base64.urlsafe_b64encode(kdf.derive(password.encode()))
-    
-    try:
-        return Fernet(key).decrypt(ciphertext).decode()
-    except Exception:
-        raise InvalidKey('The provided password is incorrect.')
+        try:
+            return Fernet(key).decrypt(ciphertext).decode()
+        except Exception:
+            raise InvalidKey('The provided password is incorrect.')

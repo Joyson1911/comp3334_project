@@ -5,7 +5,7 @@ from typing import Literal, Self
 from pathlib import Path
 import uuid
 
-from crypto import RSA, RSAPublicKey, encrypt_with_pw, decrypt_with_pw, SHA256
+from crypto import RSA, RSAPublicKey, SHA256
             
 class Client:
     """Store format:  
@@ -145,7 +145,7 @@ class SecureStorage:
         with msg_path[0].open('rb') as msg_f:
             for line in msg_f.readlines():
                 if line == b'': continue
-                line = decrypt_with_pw(line, self.enc_pw)
+                line = SHA256.decrypt_with_pw(line, self.enc_pw)
                 items = line.split(' ', 4)
                 messages.append(MsgStore(
                     int(-1 if items[0] == 'None' else items[0]),
@@ -177,7 +177,7 @@ class SecureStorage:
 
         with msg_path[0].open(f'{mode}b') as msg_f:
             for m in store_msg:
-                msg_f.write(encrypt_with_pw(m, self.enc_pw, self.salt)+b'\n')
+                msg_f.write(SHA256.encrypt_with_pw(m, self.enc_pw, self.salt) + b'\n')
             
     def append_msgs(self, email: str, msg_list: list[Message]):
         self.write_chat_msg(email, msg_list, 'a')

@@ -108,10 +108,10 @@ def loginPage(ui: UI, api: Client_API, storage: SecureStorage):
             if not password:
                 ui.showFeedback("Password can not be empty.")
                 continue
-            # if verCode != otp:
-            #     ui.showFeedback("Login failed. Incorrect verification code.")
-            #     continue
-            digest = SHA256().compute(password)
+            if verCode != otp:
+                ui.showFeedback("Login failed. Incorrect verification code.")
+                continue
+            digest = SHA256.compute(password, email)
             login_result = api.login(None, email, digest, verCode, getMacAddress(), storage.client_info.rsa.pub_key_str())
             if not login_result.get("success"):
                 ui.showFeedback(f"Login failed. {login_result.get("error")}")
@@ -162,7 +162,7 @@ def loginPage(ui: UI, api: Client_API, storage: SecureStorage):
                 
                 ui.showFeedback("Passwords do not match. Please try again.")
                 
-            digest = SHA256().compute(password1)
+            digest = SHA256.compute(password1, email)
             register_result = api.register(email, digest, verCode)
             if not register_result.get("success"):
                 ui.showFeedback(f"Register failed. {register_result.get('error')}")
