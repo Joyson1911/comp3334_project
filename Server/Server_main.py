@@ -12,7 +12,7 @@ from datetime import timedelta
 from database import db, User, Friendship, BlockedUser, FriendRequest, Message
 from retention_policy import start_retention_worker
 from otp_cleanup import start_otp_cleanup
-# from Email import emailVerification
+from Email import emailVerification
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -89,9 +89,6 @@ def handle_otp_request(data):
         if not find_user_by_email(email):
             return {'success': False, 'error': 'User (Email) not found'}
     
-    # only for testing!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    #should use email.py to send email with OTP!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    
     # Generate and store OTP
     generated_otp = secrets.randbelow(900000) + 100000  # 6-digit OTP
     expiry_time = datetime.now() + otp_lifetime
@@ -99,11 +96,10 @@ def handle_otp_request(data):
         'code': str(generated_otp),
         'expiry': expiry_time
     }
-    print(f"Generated OTP for {email}: {generated_otp} (Expires: {expiry_time})")
     
-    # emailVerification(generated_otp, email)
+    emailVerification(generated_otp, email)
     
-    return {'success': True, 'message': 'OTP generated', 'otp': generated_otp}
+    return {'success': True, 'message': 'OTP generated'}
 
 @socketio.on('register')
 def handle_register(data):
@@ -161,10 +157,6 @@ def handle_login(data):
     
     macAddress = data.get('macAddress')
     publicKey = data.get('publicKey')
-
-    #need to remove!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    print(f"from {email}: {otp}") #need to remove!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    #need to remove!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     
     if token and token in sessions:
         
@@ -585,7 +577,6 @@ def handle_send_message(data):
     lifetime = data.get('lifetime', None)
     
     if lifetime is not None: 
-        print("Lifetime")
         del_time = datetime.now()+timedelta(seconds=lifetime)
         del_time = del_time.strftime("%Y-%m-%d %H:%M:%S")
     else:
@@ -714,4 +705,4 @@ if __name__ == '__main__':
     
     from os.path import join, abspath, dirname
     cur = dirname(abspath(__file__))
-    socketio.run(app, host='0.0.0.0', port=8443, debug=True, keyfile=join(cur, 'key.pem'), certfile=join(cur, 'cert.pem'))
+    socketio.run(app, host='0.0.0.0', port=3000, debug=True, keyfile=join(cur, 'key.pem'), certfile=join(cur, 'cert.pem'))

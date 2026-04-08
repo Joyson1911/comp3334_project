@@ -100,7 +100,7 @@ def loginPage(ui: UI, api: Client_API, storage: SecureStorage):
             if not otp_result.get("success"):
                 ui.showFeedback(otp_result.get("error"))
                 continue
-            otp = str(otp_result.get("otp"))
+            # otp = str(otp_result.get("otp"))
             ui.showFeedback("Verification code sent to your email.")
             #Read password and verification code
             verCode = ui.getString("Verification Code: ")
@@ -108,9 +108,9 @@ def loginPage(ui: UI, api: Client_API, storage: SecureStorage):
             if not password:
                 ui.showFeedback("Password can not be empty.")
                 continue
-            if verCode != otp:
-                ui.showFeedback("Login failed. Incorrect verification code.")
-                continue
+            # if verCode != otp:
+            #     ui.showFeedback("Login failed. Incorrect verification code.")
+            #     continue
             digest = SHA256().compute(password)
             login_result = api.login(None, email, digest, verCode, getMacAddress(), storage.client_info.rsa.pub_key_str())
             if not login_result.get("success"):
@@ -143,13 +143,13 @@ def loginPage(ui: UI, api: Client_API, storage: SecureStorage):
             if not otp_result.get("success"):
                 ui.showFeedback(otp_result.get("error"))
                 continue
-            otp = str(otp_result.get("otp"))
+            # otp = str(otp_result.get("otp"))
             ui.showFeedback("Verification code sent to your email.")
             verCode = ui.getString("Verification Code: ")
-            if verCode != otp:
-                ui.showFeedback("Incorrect verification code.")
-                continue
-            ui.showFeedback("Email verified.")
+            # if verCode != otp:
+            #     ui.showFeedback("Incorrect verification code.")
+            #     continue
+            # ui.showFeedback("Email verified.")
             while True:
                 password1 = ui.getPassword("Set password: ")
                 if not isValidPassword(password1):

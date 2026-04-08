@@ -5,7 +5,6 @@ import threading
 import time
 
 from messaging import Message 
-# from typing import Callable
 
 class Client_API:
     """
@@ -13,7 +12,7 @@ class Client_API:
     All communication happens through WebSocket connection.
     """
     
-    def __init__(self, server_url: str = "https://ec2-54-66-34-48.ap-southeast-2.compute.amazonaws.com:8443"):
+    def __init__(self, server_url: str = "https://localhost:3000"):
         """
         Initialize chat client
         
@@ -71,7 +70,7 @@ class Client_API:
         @self.sio.on('connected')
         def on_connected(data):
             """Handle connection confirmation from server"""
-            print(f"Welcome")
+            # print(f"Welcome")
         
         @self.sio.on('new_message')
         def on_new_message(data):
@@ -142,7 +141,6 @@ class Client_API:
     
     # ============ Authentication Methods ============
     
-    # For testing purposes, return OTP directly !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     def otp_request(self, email: str, action: str):
         try:
             data = self.sio.call('otp_request', {
@@ -151,7 +149,7 @@ class Client_API:
             }, timeout=10)
 
             if data and data.get('success'):
-                return {"success": True, "otp": data.get('otp')}
+                return {"success": True}
             else:
                 return {"success": False, "error": data.get('error')}
         except Exception as e:
