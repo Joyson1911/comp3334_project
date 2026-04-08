@@ -8,6 +8,7 @@ from flask_socketio import SocketIO, emit
 import secrets
 from datetime import datetime
 from datetime import timedelta
+from sqlalchemy import or_
 
 from database import db, User, Friendship, BlockedUser, FriendRequest, Message
 from retention_policy import start_retention_worker
@@ -97,7 +98,8 @@ def handle_otp_request(data):
         'expiry': expiry_time
     }
     
-    emailVerification(generated_otp, email)
+    # emailVerification(generated_otp, email)
+    print(f"Generated OTP for {email}: {generated_otp} (expires at {expiry_time.isoformat()})")
     
     return {'success': True, 'message': 'OTP generated'}
 
@@ -223,7 +225,7 @@ def handle_login(data):
         db.session.commit()
     
     # Send offline messages if any
-    offline_msgs_query = Message.query.filter_by(to_email=user.email, delivered=False).all()
+    offline_msgs_query = Message.query.filter_by(to_email=user.email, delivered=False, to_macAddress=user.macAddress).all()
     
     if offline_msgs_query:
         formatted_msgs = []
@@ -234,7 +236,7 @@ def handle_login(data):
                 'to_email': m.to_email,
                 'content': m.content,
                 'timestamp': m.timestamp.isoformat() if m.timestamp else None,
-                'macAddress': m.macAddress,
+                'to_macAddress': find_user_by_email(m.to_email).macAddress if find_user_by_email(m.to_email) else None,
                 'del_time': m.del_time
             })
             m.delivered = True
@@ -573,7 +575,6 @@ def handle_send_message(data):
     from_email = online_users[sid]
     to_email = data.get('to_email')
     content = data.get('content')
-    macAddress = data.get('macAddress')
     lifetime = data.get('lifetime', None)
     
     if lifetime is not None: 
@@ -612,7 +613,7 @@ def handle_send_message(data):
             content=content,
             timestamp=datetime.utcnow(),
             delivered=False,
-            macAddress=macAddress,
+            to_macAddress=find_user_by_email(to_email).macAddress if find_user_by_email(to_email) else None,
             del_time=del_time
         )
         
@@ -629,7 +630,7 @@ def handle_send_message(data):
                 'to_email': to_email,
                 'content': content,
                 'timestamp': new_msg.timestamp.isoformat(),
-                'macAddress': macAddress,
+                'to_macAddress': find_user_by_email(to_email).macAddress if find_user_by_email(to_email) else None,
                 'del_time': del_time,
             }, room=user_sid_map[to_email])
             
@@ -676,10 +677,12 @@ def handle_latest_message_id(data):
         return {'success': False, 'error': 'You can only get message IDs from your friends'}
     
     # Get the latest message ID
-    latest_msg = Message.query.filter_by(
-        from_email=friend_email,
-        to_email=user_email, 
-        delivered=True
+    latest_msg = Message.query.filter(
+        or_(
+            (Message.from_email == friend_email) & (Message.to_email == user_email),
+            (Message.from_email == user_email) & (Message.to_email == friend_email)
+        ),
+        Message.delivered == True
     ).order_by(Message.id.desc()).first()
     
     if latest_msg:

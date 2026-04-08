@@ -39,5 +39,5 @@ class Message(db.Model):
     content = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     delivered = db.Column(db.Boolean, default=False)
-    macAddress = db.Column(db.String(50))
+    to_macAddress = db.Column(db.String(50))
     del_time = db.Column(db.String(50))  
