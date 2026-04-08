@@ -241,6 +241,11 @@ def chatroomPage(ui: UI, account: Account, storage: SecureStorage, conversation:
     recipientEmail = conversation["currentChat"]
     recipientKey =  storage.get_public_key(recipientEmail)
     key_result = api.get_public_key(recipientEmail)
+    id_result = api.latest_message_id(recipientEmail)
+    pageSize = ui.msgWinSize
+    if not id_result.get("success"):
+        ui.showFeedback(id_result.get("error"))
+        return
     if not key_result.get("success"):
         ui.showFeedback(key_result.get("error"))
         return
@@ -255,23 +260,33 @@ def chatroomPage(ui: UI, account: Account, storage: SecureStorage, conversation:
             conversation["currentChat"] = None
             return
         
+    latestID = id_result.get("latest_message_id")
     storage.save_public_key(recipientEmail, RSA.read_pub_key(latestKey))
     account.clearUnread(recipientEmail)
     lifetime = None
     page = [1]
     conversation["page"] = page[0]
     messages = conversation["messageList"]
+    for i in range(len(messages) - 1, -1, -1):
+        
+        if latestID >= messages[i].id:
+
+            while i >= 0:
+                messages[i].delivered = True
+                i -= 1
+            break
+
     #Set thread for checking message expiry
     stop_event = threading.Event()
     expiryChecker = threading.Thread(target=checkIfExpired, args=(ui, messages, stop_event, conversation))
     expiryChecker.start()
-    end = len(messages)- ((page [0]- 1) * 10)
-    start = max(0, end - 10)
+    end = len(messages)- ((page [0]- 1) * pageSize)
+    start = max(0, end - pageSize)
     ui.displayMessage(messages[start:end])
     while True:
         ui.drawMenu("Menu: 1. Send message | 2. Set message lifetime | 3. Remove message lifetime  | 4. Last page | 5. Next page | 6. Return to contacts")
-        end = len(messages)- ((page [0]- 1) * 10)
-        start = max(0, end - 10)
+        end = len(messages)- ((page [0]- 1) * pageSize)
+        start = max(0, end - pageSize)
         ui.setTitle(f"Chatroom with {recipientEmail}: Page {page[0]}")
         userInput = ui.getInteger("Enter: ", 7)
         if userInput == 1:
@@ -289,8 +304,8 @@ def chatroomPage(ui: UI, account: Account, storage: SecureStorage, conversation:
             msg.id = send_result.get("message_id")
             msg.delete_time = send_result.get("del_time")
             messages.append(msg)
-            end = len(messages)- ((page [0]- 1) * 10)
-            start = max(0, end - 10)
+            end = len(messages)- ((page [0]- 1) * pageSize)
+            start = max(0, end - pageSize)
             ui.displayMessage(messages[start:end])
         elif userInput == 2:
             ui.showFeedback("Units of message lifetime are s(second), m(minute) and h(hour). Min: 30s, Max: 24h")
@@ -302,18 +317,18 @@ def chatroomPage(ui: UI, account: Account, storage: SecureStorage, conversation:
                 ui.showFeedback("You are at the first page.")
                 continue
             page[0]-=1
-            end = len(messages)- ((page [0]- 1) * 10)
-            start = max(0, end - 10)
+            end = len(messages)- ((page [0]- 1) * pageSize)
+            start = max(0, end - pageSize)
             ui.displayMessage(messages[start:end])
         elif userInput == 5:
-            tend = len(messages)- ((page [0]) * 10)
-            tstart = max(0, end - 10)
-            if page[0] >= (len(messages) + 9) // 10:
+            tend = len(messages)- ((page [0]) * pageSize)
+            tstart = max(0, end - pageSize)
+            if page[0] >= (len(messages) + 9) // pageSize:
                 ui.showFeedback("You are at the last page.")
                 continue
             page[0]+=1
-            end = len(messages)- ((page [0]- 1) * 10)
-            start = max(0, end - 10)
+            end = len(messages)- ((page [0]- 1) * pageSize)
+            start = max(0, end - pageSize)
             ui.displayMessage(messages[start:end])
         elif userInput == 6:
             storage.write_chat_msg(recipientEmail, messages)
@@ -404,7 +419,10 @@ def requestPage(ui: UI, account: Account, api: Client_API, pageInfo: dict):
                 ui.showFeedback("You have no pending friend requests at the moment.")
                 continue
             userInput = ui.getInteger("Enter request ID: ", len(account.request["sent"])+1)
-            #Send cancel to server
+            cancel_result = api.cancel_friend_request(account.friendlist["friends"][userInput-1])
+            if not cancel_result.get("success"):
+                ui.showFeedback(f"Failed to cancel request. {cancel_result.get("error")}")
+                continue
             account.request["sent"].pop(userInput-1)
         elif userInput == 4:
             pageInfo["currentPage"] =  "relationship"

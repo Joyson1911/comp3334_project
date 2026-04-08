@@ -13,6 +13,7 @@ class UI:
         self.locked = False
 
         self.h, self.w = stdscr.getmaxyx() #Get height(row) and width(col) of terminal
+        self.msgWinSize = self.h-5
         """
         Title window: Responsible for displaying page title, one line only
 
